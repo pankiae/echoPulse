@@ -26,10 +26,11 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
     """
     Analyzes an audio clip directly using Google Gemini Flash Multimodal LLM
     with native Structured Output (Pydantic schema adhering strictly to AutoAce specifications).
+    P95 Acoustic Calibration System Prompt applied.
     Returns (result_schema, usage_stats_dict).
     """
     filename = os.path.basename(audio_path)
-    logger.info(f"[{filename}] Initializing Gemini 3.5 Lite Multimodal Audio Analysis...")
+    logger.info(f"[{filename}] Initializing Gemini 3.5 Lite Multimodal Audio Analysis (P95 Noise Calibration)...")
 
     client = get_gemini_client()
 
@@ -53,42 +54,46 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
     audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
 
     prompt = (
-        "You are an expert audio analytics and acoustic signals AI evaluating call recordings for background noise and quality.\n\n"
-        "LISTEN CRITICALLY TO THE ENTIRE AUDIO SPECTRUM & BACKGROUND SOUNDSCAPE:\n"
-        "- Pay explicit attention to constant or intermittent non-speech background sound (e.g. sharp static, hiss, hum, white noise, TV audio/chatter, music, road/engine noise, wind, keyboard clicks, air conditioning, fan noise, mic rustle).\n"
-        "- Even if human speech is clear and intelligible, ANY audible background noise must set `background_noise_present = true`.\n"
-        "- Do NOT ignore static or TV sound just because the human speaker is talking clearly.\n\n"
-        "REQUIRED FIELDS & STRICT DEFINITIONS:\n"
-        "1. emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
-        "   - neutral: no clear positive or negative emotion.\n"
-        "   - satisfied: pleased, relieved, appreciative, or clearly positive.\n"
-        "   - frustrated: annoyed, impatient, or dissatisfied without strong anger or distress.\n"
-        "   - upset: clearly angry, agitated, or strongly dissatisfied.\n"
-        "   - distressed: highly emotional, overwhelmed, panicked, crying, or emotionally escalated.\n"
-        "   *Note: Do NOT infer frustration or distress solely from volume or pitch.\n\n"
-        "2. emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
-        "   - low: subtle or mild. (Must be 'low' if emotional_tone is 'neutral')\n"
-        "   - medium: clear and sustained.\n"
-        "   - high: strong, escalated, or requiring immediate attention.\n\n"
-        "3. background_noise_present (Boolean: true | false):\n"
-        "   - Set to `true` if ANY audible background sound, static, TV, chatter, hum, music, or environmental noise exists behind or alongside speech.\n"
-        "   - Set to `false` ONLY if the background soundscape is completely silent or pure speech with zero acoustic noise.\n\n"
-        "4. background_noise_type (String):\n"
-        "   - Identify the exact noise: e.g., 'television', 'sharp static', 'white noise', 'hiss', 'office chatter', 'road noise', 'music', 'wind', or 'keyboard typing'.\n"
-        "   - MUST be an empty string '' if background_noise_present is false.\n\n"
-        "5. background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
-        "   - none: strictly zero noise (background_noise_present = false).\n"
-        "   - low: audible in background but speech remains completely clear.\n"
-        "   - medium: clearly noticeable background noise that occasionally competes with speech.\n"
-        "   - high: loud static, loud TV, or noise that severely dominates the recording.\n\n"
-        "6. audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
-        "   - Technical fidelity of the recording (distortion, clipping, static, low volume, muffled speech, packet loss).\n\n"
-        "7. speaker_overlap_present (Boolean: true | false):\n"
-        "   - Set to `true` if multiple voices talk simultaneously.\n\n"
-        "8. long_silence_present (Boolean: true | false):\n"
-        "   - Set to `true` if there is continuous dead air / silence (>4 seconds).\n\n"
-        "9. confidence (Number: 0.0 to 1.0):\n"
-        "   - Confidence score from 0.0 to 1.0."
+        "You are an elite acoustic forensics AI specialized in call recording signal analysis. "
+        "Perform a high-precision multi-pass audit on this audio clip to achieve P95 accuracy across all 9 schema fields.\n\n"
+        "=== ACOUSTIC NOISE AUDIT PROTOCOL (CRITICAL FOR P95 ACCURACY) ===\n"
+        "1. STEP-BY-STEP NOISE DETECTION:\n"
+        "   - Listen to pauses, gaps between words, and the silent background layer underneath human voice.\n"
+        "   - Check for CONSTANT background noise: electrical hiss, line static, hum, fan noise, air conditioning, white noise.\n"
+        "   - Check for INTERMITTENT background noise: TV speech/chatter, background television sound, office background voices, road/vehicle noise, keyboard clicks, mic rustle.\n"
+        "   - CRITICAL RULE: Human speech clarity DOES NOT cancel background noise! If speech is clear BUT background static or TV is audible, set `background_noise_present = true` and `audio_quality = 'clear'` (or `'slightly_impaired'`). Noise and quality are SEPARATE metrics.\n"
+        "   - Set `background_noise_present = false` ONLY if the background is completely clean or studio silent.\n\n"
+        "2. FIELD DEFINITIONS & RULES:\n"
+        "   - emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
+        "     * neutral: calm speech with no strong positive or negative emotional polarity.\n"
+        "     * satisfied: pleased, relieved, appreciative, or warm tone.\n"
+        "     * frustrated: annoyed, impatient, passive-aggressive, or dissatisfied.\n"
+        "     * upset: angry, agitated, shouting, or direct confrontation.\n"
+        "     * distressed: overwhelmed, crying, panicked, or in severe distress.\n"
+        "     * RULE: Do NOT infer frustration/distress from volume alone. Evaluate pitch inflection and speech rhythm.\n\n"
+        "   - emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
+        "     * low: subtle/mild. MUST be 'low' whenever emotional_tone is 'neutral'.\n"
+        "     * medium: clear and sustained emotion.\n"
+        "     * high: strong, escalated, or intense.\n\n"
+        "   - background_noise_present (Boolean: true | false):\n"
+        "     * `true` if ANY audible background sound, static, TV, chatter, hum, music, or environmental noise exists.\n"
+        "     * `false` ONLY if the background soundscape has zero non-speech noise.\n\n"
+        "   - background_noise_type (String):\n"
+        "     * Specific description: e.g. 'sharp static', 'television', 'office chatter', 'hiss', 'road noise', 'music', 'wind', 'keyboard typing'.\n"
+        "     * MUST be empty string '' if background_noise_present is false.\n\n"
+        "   - background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
+        "     * none: zero noise (background_noise_present = false).\n"
+        "     * low: audible background noise that does not interfere with speech.\n"
+        "     * medium: clearly audible noise that occasionally competes with understanding.\n"
+        "     * high: loud static, loud TV, or dominating background noise.\n\n"
+        "   - audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
+        "     * Technical quality independent of emotion or background noise presence.\n\n"
+        "   - speaker_overlap_present (Boolean: true | false):\n"
+        "     * `true` if multiple voices talk simultaneously.\n\n"
+        "   - long_silence_present (Boolean: true | false):\n"
+        "     * `true` if there is continuous dead air / silence (>4 seconds).\n\n"
+        "   - confidence (Number: 0.0 to 1.0):\n"
+        "     * Confidence score from 0.0 to 1.0 based on signal clarity."
     )
 
     logger.info(f"[{filename}] Sending prompt and audio tensor to Gemini '{MODEL_NAME}' with structured Pydantic response_schema...")
@@ -100,7 +105,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=AudioAnalysisResult,
-                temperature=0.1,
+                temperature=0.0,
             ),
         )
 
