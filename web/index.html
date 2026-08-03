@@ -444,6 +444,15 @@
             border-radius: 6px;
             font-family: monospace;
         }
+
+        .duration-badge {
+            font-size: 0.78rem;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-weight: 700;
+        }
     </style>
 </head>
 <body>
@@ -504,6 +513,11 @@
                 <div class="metric-value" id="statTotal">0</div>
             </div>
             <div class="metric-card">
+                <div class="metric-label">Total Audio Duration</div>
+                <div class="metric-value" id="statAudioDuration" style="color: var(--accent-sky); font-size: 1.5rem;">0s</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statAudioSeconds">0.0 seconds total call audio</div>
+            </div>
+            <div class="metric-card">
                 <div class="metric-label">Total Token Consumption</div>
                 <div class="metric-value" id="statTokens" style="color: var(--accent-primary); font-size: 1.5rem;">0 tokens</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statTokensDetail">Prompt: 0 | Output: 0</div>
@@ -512,10 +526,6 @@
                 <div class="metric-label">Total API Cost (USD)</div>
                 <div class="metric-value" id="statCost" style="color: var(--accent-green); font-size: 1.5rem;">$0.000000</div>
                 <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;" id="statCostCents">~0.0000¢</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Model Engine</div>
-                <div class="metric-value" style="color: var(--accent-sky); font-size: 1.25rem;">gemini-3.5-flash-lite</div>
             </div>
         </div>
 
@@ -555,6 +565,7 @@
                         <thead>
                             <tr>
                                 <th>File Name</th>
+                                <th>Audio Length</th>
                                 <th>Emotional Tone</th>
                                 <th>Emotional Intensity</th>
                                 <th>Noise Present</th>
@@ -627,12 +638,19 @@
         }
 
         function renderTable(data) {
-            document.getElementById('statTotal').innerText = data.total_files || 0;
+            const totalFiles = data.total_files || 0;
+            document.getElementById('statTotal').innerText = totalFiles;
+            
+            const totalAudioSec = data.total_audio_duration_seconds || 0.0;
+            const formattedTotalAudio = data.total_audio_duration_formatted || (totalAudioSec.toFixed(1) + 's');
             
             const totalTokens = data.total_tokens || 0;
             const promptTokens = data.total_prompt_tokens || 0;
             const candidateTokens = data.total_candidate_tokens || 0;
             const totalCost = data.total_batch_cost_usd || 0.0;
+
+            document.getElementById('statAudioDuration').innerText = formattedTotalAudio;
+            document.getElementById('statAudioSeconds').innerText = `${totalAudioSec.toFixed(1)} seconds of call recordings`;
 
             document.getElementById('statTokens').innerText = totalTokens.toLocaleString() + ' tokens';
             document.getElementById('statTokensDetail').innerText = `Prompt: ${promptTokens.toLocaleString()} | Output: ${candidateTokens.toLocaleString()}`;
@@ -662,11 +680,13 @@
                 else if (p.background_noise_severity === 'medium') severityClass = 'tag-medium';
                 else if (p.background_noise_severity === 'low') severityClass = 'tag-low';
 
+                const audioLen = u.audio_duration_formatted || (u.audio_duration_seconds ? u.audio_duration_seconds.toFixed(1) + 's' : 'N/A');
                 const itemTokens = u.total_tokens ? u.total_tokens.toLocaleString() : 'N/A';
                 const itemCost = u.cost_usd ? '$' + u.cost_usd.toFixed(6) : 'N/A';
 
                 tr.innerHTML = `
                     <td><strong>${item.filename}</strong></td>
+                    <td><span class="duration-badge">${audioLen}</span></td>
                     <td><span class="enum-tag ${toneClass}">${p.emotional_tone || 'N/A'}</span></td>
                     <td><span class="enum-tag ${intensityClass}">${p.emotional_intensity || 'N/A'}</span></td>
                     <td><span class="enum-tag ${p.background_noise_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.background_noise_present}</span></td>
@@ -712,16 +732,17 @@
                 return;
             }
 
-            let md = '| File Name | Emotional Tone | Emotional Intensity | Noise Present | Noise Type | Noise Severity | Audio Quality | Speaker Overlap | Long Silence | Tokens | Est. Cost | Confidence |\n';
-            md += '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
+            let md = '| File Name | Audio Length | Emotional Tone | Emotional Intensity | Noise Present | Noise Type | Noise Severity | Audio Quality | Speaker Overlap | Long Silence | Tokens | Est. Cost | Confidence |\n';
+            md += '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
 
             currentBatchData.results.forEach(item => {
                 const p = item.prediction || {};
                 const u = item.usage || {};
+                const len = u.audio_duration_formatted || (u.audio_duration_seconds ? u.audio_duration_seconds.toFixed(1) + 's' : 'N/A');
                 const t = u.total_tokens ? u.total_tokens : 'N/A';
                 const c = u.cost_usd ? '$' + u.cost_usd.toFixed(6) : 'N/A';
 
-                md += `| ${item.filename} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${t} | ${c} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
+                md += `| ${item.filename} | ${len} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${t} | ${c} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
             });
 
             navigator.clipboard.writeText(md).then(() => {

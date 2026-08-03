@@ -4,6 +4,8 @@ import json
 import shutil
 import zipfile
 import tempfile
+import asyncio
+import sys
 from typing import Optional
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -12,9 +14,24 @@ from fastapi.staticfiles import StaticFiles
 from pipeline.runner import analyze_audio_file, process_batch
 from pipeline.logger import get_logger
 
-logger = get_logger("EchoPulseAPI")
+# Silence unhandled asyncio background task warnings from SDK cleanup
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+def custom_exception_handler(loop, context):
+    exception = context.get("exception")
+    if isinstance(exception, AttributeError) and "_async_httpx_client" in str(exception):
+        return  # Suppress SDK destructor cleanup warning
+    loop.default_exception_handler(context)
 
 app = FastAPI(title="EchoPulse AI - Multimodal Gemini Voice Analytics System")
+
+@app.on_event("startup")
+async def startup_event():
+    loop = asyncio.get_running_loop()
+    loop.set_exception_handler(custom_exception_handler)
+
+logger = get_logger("EchoPulseAPI")
 
 # Active batch memory cache
 CURRENT_BATCH_RESULTS = None
@@ -74,6 +91,8 @@ async def upload_batch(file: UploadFile = File(...)):
                 pred, usage = analyze_audio_file(file_path)
                 CURRENT_BATCH_RESULTS = {
                     "total_files": 1,
+                    "total_audio_duration_seconds": usage.get("audio_duration_seconds", 0.0),
+                    "total_audio_duration_formatted": usage.get("audio_duration_formatted", "0s"),
                     "total_prompt_tokens": usage.get("prompt_tokens", 0),
                     "total_candidate_tokens": usage.get("candidate_tokens", 0),
                     "total_tokens": usage.get("total_tokens", 0),
@@ -127,6 +146,8 @@ def get_results():
         else:
             return {
                 "total_files": 0,
+                "total_audio_duration_seconds": 0.0,
+                "total_audio_duration_formatted": "0s",
                 "total_prompt_tokens": 0,
                 "total_candidate_tokens": 0,
                 "total_tokens": 0,

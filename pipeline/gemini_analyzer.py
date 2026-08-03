@@ -6,31 +6,44 @@ from google import genai
 from google.genai import types
 from pipeline.schema import AudioAnalysisResult
 from pipeline.logger import get_logger
+from pipeline.audio_utils import get_audio_duration_seconds, format_duration_human
 
 logger = get_logger("GeminiAnalyzer")
 
 MODEL_NAME = "gemini-3.5-flash-lite"
 
+_client_cache: Dict[str, genai.Client] = {}
+
 
 def get_gemini_client() -> genai.Client:
     """
     Dynamically fetches Gemini client evaluating GEMINI_API_KEY environment variable on every call.
+    Reuses cached genai.Client instance per API key while warning if key is missing.
     """
-    api_key = os.getenv("GEMINI_API_KEY")
+    global _client_cache
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    
     if not api_key:
         logger.warning("GEMINI_API_KEY environment variable not set. Initializing client without explicit key.")
-    return genai.Client(api_key=api_key)
+    
+    if api_key not in _client_cache:
+        _client_cache[api_key] = genai.Client(api_key=api_key if api_key else None)
+            
+    return _client_cache[api_key]
 
 
 def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dict[str, Any]]:
     """
     Analyzes an audio clip directly using Google Gemini Flash Multimodal LLM
     with native Structured Output (Pydantic schema adhering strictly to AutoAce specifications).
-    P95 Acoustic Calibration System Prompt applied.
+    Calculates audio duration, token usage, and cost.
     Returns (result_schema, usage_stats_dict).
     """
     filename = os.path.basename(audio_path)
     logger.info(f"[{filename}] Initializing Gemini 3.5 Lite Multimodal Audio Analysis (P95 Noise Calibration)...")
+
+    audio_duration_sec = get_audio_duration_seconds(audio_path)
+    audio_duration_formatted = format_duration_human(audio_duration_sec)
 
     client = get_gemini_client()
 
@@ -47,7 +60,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         }
         mime_type = mime_map.get(ext, "audio/mp3")
 
-    logger.info(f"[{filename}] Reading audio file bytes ({mime_type})...")
+    logger.info(f"[{filename}] Reading audio file bytes ({mime_type}, duration={audio_duration_formatted})...")
     with open(audio_path, "rb") as f:
         audio_bytes = f.read()
 
@@ -117,6 +130,8 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             result = AudioAnalysisResult.model_validate_json(response.text)
 
         usage_stats = {
+            "audio_duration_seconds": audio_duration_sec,
+            "audio_duration_formatted": audio_duration_formatted,
             "prompt_tokens": 0,
             "candidate_tokens": 0,
             "total_tokens": 0,
@@ -136,6 +151,8 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             total_cost_usd = input_cost + output_cost
 
             usage_stats = {
+                "audio_duration_seconds": audio_duration_sec,
+                "audio_duration_formatted": audio_duration_formatted,
                 "prompt_tokens": prompt_tokens,
                 "candidate_tokens": candidate_tokens,
                 "total_tokens": total_tokens,
@@ -143,7 +160,8 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             }
             
             logger.info(
-                f"[{filename}] Tokens: Prompt={prompt_tokens}, Output={candidate_tokens}, Total={total_tokens} | "
+                f"[{filename}] Audio Duration: {audio_duration_formatted} ({audio_duration_sec}s) | "
+                f"Tokens: Prompt={prompt_tokens}, Output={candidate_tokens}, Total={total_tokens} | "
                 f"Cost: ${total_cost_usd:.6f} USD (~{total_cost_usd*100:.4f}¢)"
             )
 
