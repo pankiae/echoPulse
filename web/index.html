@@ -23,7 +23,7 @@
         }
 
         * {
-            box-sizing: border-color;
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -35,14 +35,15 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow-x: hidden;
         }
 
-        /* Header Bar - Light Theme */
+        /* Header Bar */
         header {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border-color);
-            padding: 1.1rem 2.2rem;
+            padding: 1rem 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -50,6 +51,8 @@
             top: 0;
             z-index: 100;
             box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .logo-group {
@@ -67,17 +70,18 @@
             font-size: 0.9rem;
             letter-spacing: 1.2px;
             box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+            white-space: nowrap;
         }
 
         .logo-title {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             font-weight: 800;
             color: var(--text-main);
             letter-spacing: -0.3px;
         }
 
         .logo-subtitle {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
             font-weight: 500;
         }
@@ -85,9 +89,10 @@
         .user-status {
             display: flex;
             align-items: center;
-            gap: 1.2rem;
+            gap: 1rem;
             font-size: 0.875rem;
             color: var(--text-muted);
+            flex-wrap: wrap;
         }
 
         .badge-live {
@@ -101,6 +106,7 @@
             display: flex;
             align-items: center;
             gap: 0.4rem;
+            white-space: nowrap;
         }
 
         .badge-live::before {
@@ -115,9 +121,10 @@
         /* App Container */
         .container {
             max-width: 1680px;
-            margin: 1.75rem auto;
-            padding: 0 1.75rem;
+            margin: 1.5rem auto;
+            padding: 0 1.25rem;
             width: 100%;
+            box-sizing: border-box;
             flex: 1;
         }
 
@@ -130,17 +137,19 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 1rem;
             z-index: 1000;
         }
 
         .login-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
-            padding: 2.5rem;
+            padding: 2.2rem;
             border-radius: 16px;
             width: 100%;
             max-width: 420px;
             box-shadow: var(--shadow-card);
+            box-sizing: border-box;
         }
 
         .login-card h2 {
@@ -178,6 +187,7 @@
             color: var(--text-main);
             font-size: 0.95rem;
             outline: none;
+            box-sizing: border-box;
             transition: all 0.2s ease;
         }
 
@@ -209,17 +219,18 @@
         /* Metric Grid */
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1.35rem;
-            margin-bottom: 1.75rem;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
         }
 
         .metric-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 14px;
-            padding: 1.35rem 1.5rem;
+            padding: 1.25rem 1.4rem;
             box-shadow: var(--shadow-subtle);
+            box-sizing: border-box;
         }
 
         .metric-label {
@@ -231,7 +242,7 @@
         }
 
         .metric-value {
-            font-size: 1.85rem;
+            font-size: 1.75rem;
             font-weight: 800;
             margin-top: 0.35rem;
             color: var(--text-main);
@@ -240,8 +251,15 @@
         /* Main Content Layout */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 310px 1fr;
-            gap: 1.75rem;
+            grid-template-columns: 300px minmax(0, 1fr);
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* Upload Panel */
@@ -249,8 +267,9 @@
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 16px;
-            padding: 1.6rem;
+            padding: 1.5rem;
             box-shadow: var(--shadow-subtle);
+            box-sizing: border-box;
             height: fit-content;
         }
 
@@ -258,10 +277,11 @@
             border: 2px dashed #cbd5e1;
             background: #f8fafc;
             border-radius: 12px;
-            padding: 2.2rem 1.2rem;
+            padding: 2rem 1rem;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s ease;
+            box-sizing: border-box;
         }
 
         .drop-zone:hover {
@@ -274,8 +294,10 @@
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 16px;
-            padding: 1.6rem;
+            padding: 1.5rem;
             box-shadow: var(--shadow-subtle);
+            box-sizing: border-box;
+            max-width: 100%;
             overflow-x: auto;
         }
 
@@ -283,13 +305,21 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.35rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+            gap: 0.85rem;
         }
 
         .panel-title {
-            font-size: 1.15rem;
+            font-size: 1.1rem;
             font-weight: 800;
             color: var(--text-main);
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
@@ -303,7 +333,7 @@
         th {
             background: #f1f5f9;
             color: #475569;
-            padding: 0.95rem 0.85rem;
+            padding: 0.85rem 0.75rem;
             font-weight: 700;
             text-transform: uppercase;
             font-size: 0.72rem;
@@ -312,7 +342,7 @@
         }
 
         td {
-            padding: 0.95rem 0.85rem;
+            padding: 0.85rem 0.75rem;
             border-bottom: 1px solid #f1f5f9;
             color: var(--text-main);
         }
@@ -348,17 +378,17 @@
             background: #ffffff;
             border: 1px solid var(--border-color);
             color: var(--text-main);
-            padding: 0.55rem 1rem;
+            padding: 0.55rem 0.95rem;
             border-radius: 9px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             font-weight: 600;
             cursor: pointer;
-            margin-left: 0.5rem;
             display: inline-flex;
             align-items: center;
             gap: 0.45rem;
             box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             transition: all 0.2s ease;
+            white-space: nowrap;
         }
 
         .btn-action:hover {
@@ -389,6 +419,9 @@
             align-items: center;
             justify-content: space-between;
             font-size: 0.875rem;
+            flex-wrap: wrap;
+            gap: 0.85rem;
+            box-sizing: border-color;
         }
 
         .api-banner input {
@@ -397,8 +430,10 @@
             border-radius: 8px;
             padding: 0.5rem 0.8rem;
             font-size: 0.85rem;
-            width: 320px;
+            width: 280px;
+            max-width: 100%;
             outline: none;
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -447,7 +482,7 @@
                 <strong style="color: var(--accent-primary)">Gemini API Configuration:</strong>
                 <span style="color: var(--text-muted); margin-left: 0.5rem;">Enter your Google Gemini API key or set <code>GEMINI_API_KEY</code> environment variable.</span>
             </div>
-            <div style="display: flex; gap: 0.5rem;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 <input type="password" id="apiKeyInput" placeholder="AIzaSy... (Gemini API Key)">
                 <button class="btn-action" onclick="saveApiKey()">Save Key</button>
             </div>
@@ -494,7 +529,7 @@
             <div class="results-panel">
                 <div class="panel-header">
                     <div class="panel-title">Structured Voice Analysis (Gemini Multimodal Output)</div>
-                    <div>
+                    <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
                         <button class="btn-action btn-copy" onclick="copyAsMarkdown()">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                             Copy Markdown Table
@@ -504,25 +539,27 @@
                     </div>
                 </div>
 
-                <table>
-                    <thead>
-                        <tr>
-                            <th>File Name</th>
-                            <th>Emotional Tone</th>
-                            <th>Emotional Intensity</th>
-                            <th>Noise Present</th>
-                            <th>Noise Type</th>
-                            <th>Noise Severity</th>
-                            <th>Audio Quality</th>
-                            <th>Speaker Overlap</th>
-                            <th>Long Silence</th>
-                            <th>Confidence</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resultsTable">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>File Name</th>
+                                <th>Emotional Tone</th>
+                                <th>Emotional Intensity</th>
+                                <th>Noise Present</th>
+                                <th>Noise Type</th>
+                                <th>Noise Severity</th>
+                                <th>Audio Quality</th>
+                                <th>Speaker Overlap</th>
+                                <th>Long Silence</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
         </div>
