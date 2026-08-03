@@ -453,6 +453,17 @@
             border-radius: 6px;
             font-weight: 700;
         }
+
+        .batch-discount-badge {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 0.15rem 0.4rem;
+            border-radius: 5px;
+            margin-left: 0.35rem;
+        }
     </style>
 </head>
 <body>
@@ -525,7 +536,7 @@
             <div class="metric-card">
                 <div class="metric-label">Total API Cost (USD)</div>
                 <div class="metric-value" id="statCost" style="color: var(--accent-green); font-size: 1.5rem;">$0.000000</div>
-                <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;" id="statCostCents">~0.0000¢</div>
+                <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;" id="statCostCents">~0.0000¢ USD</div>
             </div>
         </div>
 
@@ -648,14 +659,16 @@
             const promptTokens = data.total_prompt_tokens || 0;
             const candidateTokens = data.total_candidate_tokens || 0;
             const totalCost = data.total_batch_cost_usd || 0.0;
+            const isBatchTier = data.is_batch_tier || false;
 
             document.getElementById('statAudioDuration').innerText = formattedTotalAudio;
             document.getElementById('statAudioSeconds').innerText = `${totalAudioSec.toFixed(1)} seconds of call recordings`;
 
             document.getElementById('statTokens').innerText = totalTokens.toLocaleString() + ' tokens';
             document.getElementById('statTokensDetail').innerText = `Prompt: ${promptTokens.toLocaleString()} | Output: ${candidateTokens.toLocaleString()}`;
+            
             document.getElementById('statCost').innerText = '$' + totalCost.toFixed(6);
-            document.getElementById('statCostCents').innerText = '~' + (totalCost * 100).toFixed(4) + '¢ USD';
+            document.getElementById('statCostCents').innerHTML = `~${(totalCost * 100).toFixed(4)}¢ USD ${isBatchTier ? '<span class="batch-discount-badge">50% OFF BATCH TIER</span>' : ''}`;
 
             const tbody = document.getElementById('resultsTable');
             tbody.innerHTML = '';
@@ -696,7 +709,7 @@
                     <td><span class="enum-tag ${p.speaker_overlap_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.speaker_overlap_present}</span></td>
                     <td><span class="enum-tag ${p.long_silence_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.long_silence_present}</span></td>
                     <td><span class="token-badge">${itemTokens}</span></td>
-                    <td><strong style="color: var(--accent-green)">${itemCost}</strong></td>
+                    <td><strong style="color: var(--accent-green)">${itemCost} ${u.is_batch ? '<span class="batch-discount-badge">50% OFF</span>' : ''}</strong></td>
                     <td><strong>${p.confidence ? p.confidence.toFixed(2) : '0.90'}</strong></td>
                 `;
                 tbody.appendChild(tr);
@@ -742,7 +755,7 @@
                 const t = u.total_tokens ? u.total_tokens : 'N/A';
                 const c = u.cost_usd ? '$' + u.cost_usd.toFixed(6) : 'N/A';
 
-                md += `| ${item.filename} | ${len} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${t} | ${c} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
+                md += `| ${item.filename} | ${len} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${t} | ${c} ${u.is_batch ? '(50% Off Batch)' : ''} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
             });
 
             navigator.clipboard.writeText(md).then(() => {
