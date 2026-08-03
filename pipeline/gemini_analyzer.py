@@ -1,6 +1,7 @@
 # pipeline/gemini_analyzer.py
 import os
 import time
+import json
 import mimetypes
 from typing import Dict, Any, Tuple, List
 from google import genai
@@ -33,47 +34,46 @@ def get_gemini_client() -> genai.Client:
     return _client_cache[api_key]
 
 
+# Upgraded Prompt Directive with 2-Phase Acoustic Protocol
 PROMPT_TEXT = (
-    "You are an elite acoustic forensics AI specialized in call recording signal analysis. "
-    "Perform a high-precision multi-pass audit on this audio clip to achieve P95 accuracy across all 9 schema fields.\n\n"
-    "=== ACOUSTIC NOISE AUDIT PROTOCOL (CRITICAL FOR P95 ACCURACY) ===\n"
+    "You are an elite acoustic forensics AI specialized in call recording signal analysis.\n"
+    "Perform a 2-PHASE high-precision audit on this audio clip to achieve P95 accuracy across all schema fields.\n\n"
+    "=== PHASE 1: BACKGROUND SOUNDSCAPE AUDIT (DO THIS FIRST) ===\n"
     "1. STEP-BY-STEP NOISE DETECTION:\n"
-    "   - Listen to pauses, gaps between words, and the silent background layer underneath human voice.\n"
-    "   - Check for CONSTANT background noise: electrical hiss, line static, hum, fan noise, air conditioning, white noise.\n"
-    "   - Check for INTERMITTENT background noise: TV speech/chatter, background television sound, office background voices, road/vehicle noise, keyboard clicks, mic rustle.\n"
-    "   - CRITICAL RULE: Human speech clarity DOES NOT cancel background noise! If speech is clear BUT background static or TV is audible, set `background_noise_present = true` and `audio_quality = 'clear'` (or `'slightly_impaired'`). Noise and quality are SEPARATE metrics.\n"
-    "   - Set `background_noise_present = false` ONLY if the background is completely clean or studio silent.\n\n"
-    "2. FIELD DEFINITIONS & RULES:\n"
-    "   - emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
-    "     * neutral: calm speech with no strong positive or negative emotional polarity.\n"
-    "     * satisfied: pleased, relieved, appreciative, or warm tone.\n"
-    "     * frustrated: annoyed, impatient, passive-aggressive, or dissatisfied.\n"
-    "     * upset: angry, agitated, shouting, or direct confrontation.\n"
-    "     * distressed: overwhelmed, crying, panicked, or in severe distress.\n"
-    "     * RULE: Do NOT infer frustration/distress from volume alone. Evaluate pitch inflection and speech rhythm.\n\n"
-    "   - emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
-    "     * low: subtle/mild. MUST be 'low' whenever emotional_tone is 'neutral'.\n"
-    "     * medium: clear and sustained emotion.\n"
-    "     * high: strong, escalated, or intense.\n\n"
-    "   - background_noise_present (Boolean: true | false):\n"
-    "     * `true` if ANY audible background sound, static, TV, chatter, hum, music, or environmental noise exists.\n"
-    "     * `false` ONLY if the background soundscape has zero non-speech noise.\n\n"
-    "   - background_noise_type (String):\n"
-    "     * Specific description: e.g. 'sharp static', 'television', 'office chatter', 'hiss', 'road noise', 'music', 'wind', 'keyboard typing'.\n"
-    "     * MUST be empty string '' if background_noise_present is false.\n\n"
-    "   - background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
-    "     * none: zero noise (background_noise_present = false).\n"
-    "     * low: audible background noise that does not interfere with speech.\n"
-    "     * medium: clearly audible noise that occasionally competes with understanding.\n"
-    "     * high: loud static, loud TV, or dominating background noise.\n\n"
-    "   - audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
-    "     * Technical quality independent of emotion or background noise presence.\n\n"
-    "   - speaker_overlap_present (Boolean: true | false):\n"
-    "     * `true` if multiple voices talk simultaneously.\n\n"
-    "   - long_silence_present (Boolean: true | false):\n"
-    "     * `true` if there is continuous dead air / silence (>4 seconds).\n\n"
-    "   - confidence (Number: 0.0 to 1.0):\n"
-    "     * Confidence score from 0.0 to 1.0 based on signal clarity."
+    "   - Isolate the pauses, zero-speech gaps between words, and trailing background layers underneath human voice.\n"
+    "   - Inspect for CONSTANT noise: electrical hiss, line static, hum, fan noise, air conditioning, white noise.\n"
+    "   - Inspect for INTERMITTENT noise: TV speech/chatter, background television sound, office background voices, road noise, keyboard clicks, mic rustle.\n"
+    "   - Document your findings step-by-step in `acoustic_audit_reasoning` and list timestamps in `detected_noise_timestamps` BEFORE setting any booleans.\n\n"
+    "2. CRITICAL RULE FOR NOISE vs QUALITY:\n"
+    "   - Human speech clarity DOES NOT override background noise!\n"
+    "   - If speech is clear BUT background static, hiss, or TV is audible in gaps, set `background_noise_present = true` and `audio_quality = 'clear'` (or `'slightly_impaired'`).\n"
+    "   - Set `background_noise_present = false` ONLY if the room soundscape is completely clean or studio silent (>0 dB SNR).\n\n"
+    "=== PHASE 2: FIELD CLASSIFICATION RULES ===\n"
+    "- emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
+    "  * neutral: calm speech with no strong emotional polarity.\n"
+    "  * satisfied: pleased, relieved, appreciative tone.\n"
+    "  * frustrated: annoyed, impatient, passive-aggressive, or dissatisfied.\n"
+    "  * upset: angry, agitated, shouting, direct confrontation.\n"
+    "  * distressed: overwhelmed, crying, panicked.\n"
+    "  * RULE: Evaluate pitch inflection and speech cadence, not just volume.\n\n"
+    "- emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
+    "  * MUST be 'low' whenever emotional_tone is 'neutral'.\n\n"
+    "- background_noise_present (Boolean):\n"
+    "  * `true` if ANY audible background sound, static, TV, chatter, hum, music, or environmental noise exists.\n"
+    "  * `false` ONLY if zero non-speech noise exists.\n\n"
+    "- background_noise_type (String):\n"
+    "  * Specific description (e.g. 'sharp static', 'television', 'office chatter', 'line hiss').\n"
+    "  * MUST be empty string '' if background_noise_present is false.\n\n"
+    "- background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
+    "  * none: zero noise (background_noise_present = false).\n"
+    "  * low: audible background noise that does not interfere with speech.\n"
+    "  * medium: clearly audible noise that occasionally competes with understanding.\n"
+    "  * high: loud static, loud TV, or dominating noise.\n\n"
+    "- audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
+    "  * Technical quality independent of background noise.\n\n"
+    "- speaker_overlap_present (Boolean): `true` if multiple voices talk simultaneously.\n"
+    "- long_silence_present (Boolean): `true` if continuous dead air / silence exceeds 4 seconds.\n"
+    "- confidence (Number: 0.0 to 1.0): Confidence score based on signal clarity."
 )
 
 
@@ -115,7 +115,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=AudioAnalysisResult,
-                temperature=0.0,
+                temperature=0.1,  # Low temperature eliminates random "clean" noise drops
             ),
         )
 
@@ -161,89 +161,166 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         logger.error(f"[{filename}] Gemini Single API call failed: {e}")
         raise e
 
-
 def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, AudioAnalysisResult, Dict[str, Any]]]:
     """
-    Submits a native Gemini Async Batch Job via client.batches.create API with 50% discount rate ($0.15/1M in, $1.25/1M out).
-    Uploads audio files via client.files.upload(), submits batch job, polls until completion, and validates Pydantic output.
+    Submits a native Gemini Async Batch Job for Audio Files via JSONL Input File upload.
+    Waits for files to transition to ACTIVE state to prevent 400 FAILED_PRECONDITION errors.
     """
     client = get_gemini_client()
     logger.info(f"=== Starting Native Gemini Batch Job for {len(audio_paths)} audio file(s)... ===")
 
-    # 1. Upload files and build batch requests list
-    batch_requests = []
     uploaded_files = []
     file_info_map = {}
+    jsonl_lines = []
 
     try:
+        # 1. Upload audio clips & WAIT for them to become ACTIVE
+        remote_audio_files = []
         for idx, path in enumerate(audio_paths):
             fname = os.path.basename(path)
             duration_sec = get_audio_duration_seconds(path)
             duration_formatted = format_duration_human(duration_sec)
             
-            logger.info(f"[{idx+1}/{len(audio_paths)}] Uploading '{fname}' to Gemini Files API...")
-            remote_file = client.files.upload(file=path)
+            mime_type, _ = mimetypes.guess_type(path)
+            if not mime_type or not mime_type.startswith("audio/"):
+                ext = os.path.splitext(path)[1].lower()
+                mime_map = {
+                    ".mp3": "audio/mp3",
+                    ".ogg": "audio/ogg",
+                    ".wav": "audio/wav",
+                    ".flac": "audio/flac",
+                    ".m4a": "audio/m4a",
+                    ".aac": "audio/aac",
+                }
+                mime_type = mime_map.get(ext, "audio/mp3")
+
+            logger.info(f"[{idx+1}/{len(audio_paths)}] Uploading '{fname}' ({mime_type}) to Gemini Files API...")
+            remote_file = client.files.upload(
+                file=path, 
+                config=types.UploadFileConfig(mime_type=mime_type)
+            )
             uploaded_files.append(remote_file)
+
+            # --- CRITICAL FIX: Wait for audio processing to reach ACTIVE state ---
+            logger.info(f"Checking processing state for '{fname}' ({remote_file.name})...")
+            while remote_file.state and str(remote_file.state).endswith("PROCESSING"):
+                time.sleep(2)
+                remote_file = client.files.get(name=remote_file.name)
+            
+            if str(remote_file.state).endswith("FAILED"):
+                raise RuntimeError(f"File upload processing failed for {fname}")
+
+            remote_audio_files.append((remote_file, mime_type, fname))
 
             file_info_map[fname] = {
                 "duration_sec": duration_sec,
                 "duration_formatted": duration_formatted
             }
 
-            custom_id = f"audio-{idx+1:03d}-{fname}"
-            batch_requests.append({
-                "custom_id": custom_id,
-                "request": types.GenerateContentConfig(
-                    model=MODEL_NAME,
-                    contents=[remote_file, PROMPT_TEXT],
-                    response_mime_type="application/json",
-                    response_schema=AudioAnalysisResult.model_json_schema(),
-                    temperature=0.0,
-                )
-            })
+        # 2. Construct JSONL Lines
+        for idx, (remote_file, mime_type, fname) in enumerate(remote_audio_files):
+            key_id = f"req-{idx+1:03d}"
+            
+            line_obj = {
+                "custom_id": key_id,
+                "request": {
+                    "contents": [
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "file_data": {
+                                        "file_uri": remote_file.uri, 
+                                        "mime_type": mime_type
+                                    }
+                                },
+                                {
+                                    "text": PROMPT_TEXT
+                                }
+                            ]
+                        }
+                    ],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "responseSchema": AudioAnalysisResult.model_json_schema(),
+                        "temperature": 0.1
+                    }
+                }
+            }
+            jsonl_lines.append(json.dumps(line_obj))
 
-        # 2. Submit Batch Job
-        logger.info(f"Submitting Batch Job to Gemini Batches API for {len(batch_requests)} item(s)...")
+        # 3. Write JSONL file locally & upload to Files API
+        jsonl_path = "temp_batch_requests.jsonl"
+        with open(jsonl_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(jsonl_lines) + "\n")
+
+        logger.info(f"Uploading batch JSONL payload '{jsonl_path}' to Files API...")
+        jsonl_file = client.files.upload(
+            file=jsonl_path,
+            config=types.UploadFileConfig(display_name="echopulse_audio_batch", mime_type="text/plain")
+        )
+        uploaded_files.append(jsonl_file)
+
+        # Wait for JSONL file processing if needed
+        while jsonl_file.state and str(jsonl_file.state).endswith("PROCESSING"):
+            time.sleep(1)
+            jsonl_file = client.files.get(name=jsonl_file.name)
+
+        if os.path.exists(jsonl_path):
+            os.remove(jsonl_path)
+
+        # 4. Submit Batch Job
+        logger.info(f"Submitting Batch Job to Gemini Batches API using source '{jsonl_file.name}'...")
         batch_job = client.batches.create(
             model=MODEL_NAME,
-            requests=batch_requests
+            src=jsonl_file.name,
+            config={
+                "display_name": "echopulse-audio-batch-job"
+            }
         )
-        logger.info(f"Batch Job successfully submitted! Job Name/ID: {batch_job.name}, Initial State: {batch_job.state}")
+        logger.info(f"Batch Job successfully submitted! Job Name: {batch_job.name}, Initial State: {batch_job.state}")
 
-        # 3. Poll Batch Job status
-        poll_interval = 5
+        # 5. Poll until batch job finishes
+        poll_interval = 10
         while batch_job.state in ["JOB_STATE_PENDING", "JOB_STATE_RUNNING"]:
-            logger.info(f"Batch job '{batch_job.name}' in progress (state={batch_job.state}). Polling in {poll_interval}s...")
+            logger.info(f"Batch job status: {batch_job.state}. Polling in {poll_interval}s...")
             time.sleep(poll_interval)
             batch_job = client.batches.get(name=batch_job.name)
 
-        logger.info(f"Batch job '{batch_job.name}' finished with final state: {batch_job.state}")
+        logger.info(f"Batch job finished with final state: {batch_job.state}")
 
+        # 6. Process results
         batch_results = []
         if batch_job.state == "JOB_STATE_SUCCEEDED":
-            for item_idx, res in enumerate(batch_job.results):
+            result_file_name = getattr(batch_job, "output_file", None) or getattr(getattr(batch_job, "dest", None), "file_name", None)
+            
+            if not result_file_name:
+                raise RuntimeError("Batch completed but output file reference was empty.")
+
+            raw_result_bytes = client.files.download(file=result_file_name)
+            result_lines = raw_result_bytes.decode('utf-8').splitlines()
+
+            for item_idx, line in enumerate(result_lines):
+                if not line.strip():
+                    continue
+                resp_obj = json.loads(line)
                 fname = audio_paths[item_idx]
                 basename = os.path.basename(fname)
                 info = file_info_map.get(basename, {"duration_sec": 0.0, "duration_formatted": "0s"})
-                
-                if res.response:
-                    parsed_result = AudioAnalysisResult.model_validate_json(res.response.text)
-                    
-                    # Compute batch usage & 50% discounted pricing ($0.15/1M input, $1.25/1M output)
-                    prompt_tokens = 0
-                    candidate_tokens = 0
-                    total_tokens = 0
-                    total_cost_usd = 0.0
 
-                    if hasattr(res.response, "usage_metadata") and res.response.usage_metadata:
-                        usage = res.response.usage_metadata
-                        prompt_tokens = usage.prompt_token_count or 0
-                        candidate_tokens = usage.candidates_token_count or 0
-                        total_tokens = usage.total_token_count or 0
-                        
-                        input_cost = (prompt_tokens / 1_000_000) * 0.15
-                        output_cost = (candidate_tokens / 1_000_000) * 1.25
-                        total_cost_usd = input_cost + output_cost
+                if "response" in resp_obj and resp_obj["response"]:
+                    candidates = resp_obj["response"].get("candidates", [])
+                    raw_text = candidates[0]["content"]["parts"][0]["text"]
+                    parsed_result = AudioAnalysisResult.model_validate_json(raw_text)
+
+                    usage_meta = resp_obj["response"].get("usageMetadata", {})
+                    prompt_tokens = usage_meta.get("promptTokenCount", 0)
+                    candidate_tokens = usage_meta.get("candidatesTokenCount", 0)
+                    total_tokens = usage_meta.get("totalTokenCount", 0)
+
+                    input_cost = (prompt_tokens / 1_000_000) * 0.15
+                    output_cost = (candidate_tokens / 1_000_000) * 1.25
+                    total_cost_usd = input_cost + output_cost
 
                     usage_stats = {
                         "audio_duration_seconds": info["duration_sec"],
@@ -257,14 +334,14 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, AudioAnal
 
                     batch_results.append((basename, parsed_result, usage_stats))
                 else:
-                    raise RuntimeError(f"Batch item '{res.custom_id}' failed in batch response")
+                    err = resp_obj.get("error", "Unknown batch error")
+                    raise RuntimeError(f"File '{basename}' failed in batch execution: {err}")
         else:
-            raise RuntimeError(f"Gemini Batch Job failed with state '{batch_job.state}'")
+            raise RuntimeError(f"Gemini Batch Job ended with state: {batch_job.state}")
 
         return batch_results
 
     finally:
-        # Clean up uploaded temporary files from Gemini Files API
         for f in uploaded_files:
             try:
                 client.files.delete(name=f.name)
