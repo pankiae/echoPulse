@@ -71,13 +71,18 @@ async def upload_batch(file: UploadFile = File(...)):
         if ext in {".ogg", ".wav", ".mp3", ".flac", ".m4a", ".aac"}:
             logger.info(f"Processing single audio clip upload with Gemini: '{file.filename}'")
             try:
-                pred = analyze_audio_file(file_path)
+                pred, usage = analyze_audio_file(file_path)
                 CURRENT_BATCH_RESULTS = {
                     "total_files": 1,
+                    "total_prompt_tokens": usage.get("prompt_tokens", 0),
+                    "total_candidate_tokens": usage.get("candidate_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0),
+                    "total_batch_cost_usd": usage.get("cost_usd", 0.0),
                     "results": [{
                         "filename": file.filename,
                         "status": "success",
                         "prediction": pred.model_dump(),
+                        "usage": usage,
                         "ground_truth": None
                     }]
                 }
@@ -120,7 +125,14 @@ def get_results():
             logger.info("Loading initial batch from local 'test_docs' directory...")
             CURRENT_BATCH_RESULTS = process_batch("test_docs")
         else:
-            return {"total_files": 0, "results": []}
+            return {
+                "total_files": 0,
+                "total_prompt_tokens": 0,
+                "total_candidate_tokens": 0,
+                "total_tokens": 0,
+                "total_batch_cost_usd": 0.0,
+                "results": []
+            }
     return CURRENT_BATCH_RESULTS
 
 

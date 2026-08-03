@@ -379,7 +379,7 @@
             border: 1px solid var(--border-color);
             color: var(--text-main);
             padding: 0.55rem 0.95rem;
-            border-radius: 9px;
+            border-radius: 99px;
             font-size: 0.82rem;
             font-weight: 600;
             cursor: pointer;
@@ -421,7 +421,7 @@
             font-size: 0.875rem;
             flex-wrap: wrap;
             gap: 0.85rem;
-            box-sizing: border-color;
+            box-sizing: border-box;
         }
 
         .api-banner input {
@@ -434,6 +434,15 @@
             max-width: 100%;
             outline: none;
             box-sizing: border-box;
+        }
+
+        .token-badge {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            background: #f1f5f9;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -449,7 +458,7 @@
             </div>
         </div>
         <div class="user-status">
-            <span class="badge-live">Gemini Flash Multimodal</span>
+            <span class="badge-live">gemini-3.5-flash-lite</span>
             <span id="userTag" style="font-weight: 600;">Evaluator Workspace</span>
         </div>
     </header>
@@ -488,23 +497,25 @@
             </div>
         </div>
         
-        <!-- Summary Stats -->
+        <!-- Summary Stats Grid -->
         <div class="metrics-grid">
             <div class="metric-card">
                 <div class="metric-label">Processed Clips</div>
                 <div class="metric-value" id="statTotal">0</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Multimodal Model</div>
-                <div class="metric-value" style="color: var(--accent-primary); font-size: 1.35rem;">Gemini 3.5 Lite</div>
+                <div class="metric-label">Total Token Consumption</div>
+                <div class="metric-value" id="statTokens" style="color: var(--accent-primary); font-size: 1.5rem;">0 tokens</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statTokensDetail">Prompt: 0 | Output: 0</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Structured Output</div>
-                <div class="metric-value" style="color: var(--accent-green); font-size: 1.35rem;">Native Pydantic</div>
+                <div class="metric-label">Total API Cost (USD)</div>
+                <div class="metric-value" id="statCost" style="color: var(--accent-green); font-size: 1.5rem;">$0.000000</div>
+                <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;" id="statCostCents">~0.0000¢</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">UI Theme</div>
-                <div class="metric-value" style="color: var(--accent-sky); font-size: 1.35rem;">Light Theme</div>
+                <div class="metric-label">Model Engine</div>
+                <div class="metric-value" style="color: var(--accent-sky); font-size: 1.25rem;">gemini-3.5-flash-lite</div>
             </div>
         </div>
 
@@ -531,7 +542,7 @@
                     <div class="panel-title">Structured Voice Analysis (Gemini Multimodal Output)</div>
                     <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
                         <button class="btn-action btn-copy" onclick="copyAsMarkdown()">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                             Copy Markdown Table
                         </button>
                         <button class="btn-action" onclick="window.location.href='/api/export/csv'">Export CSV</button>
@@ -552,6 +563,8 @@
                                 <th>Audio Quality</th>
                                 <th>Speaker Overlap</th>
                                 <th>Long Silence</th>
+                                <th>Tokens</th>
+                                <th>Est. Cost</th>
                                 <th>Confidence</th>
                             </tr>
                         </thead>
@@ -615,11 +628,23 @@
 
         function renderTable(data) {
             document.getElementById('statTotal').innerText = data.total_files || 0;
+            
+            const totalTokens = data.total_tokens || 0;
+            const promptTokens = data.total_prompt_tokens || 0;
+            const candidateTokens = data.total_candidate_tokens || 0;
+            const totalCost = data.total_batch_cost_usd || 0.0;
+
+            document.getElementById('statTokens').innerText = totalTokens.toLocaleString() + ' tokens';
+            document.getElementById('statTokensDetail').innerText = `Prompt: ${promptTokens.toLocaleString()} | Output: ${candidateTokens.toLocaleString()}`;
+            document.getElementById('statCost').innerText = '$' + totalCost.toFixed(6);
+            document.getElementById('statCostCents').innerText = '~' + (totalCost * 100).toFixed(4) + '¢ USD';
+
             const tbody = document.getElementById('resultsTable');
             tbody.innerHTML = '';
 
             (data.results || []).forEach(item => {
                 const p = item.prediction || {};
+                const u = item.usage || {};
                 const tr = document.createElement('tr');
 
                 let toneClass = 'tag-neutral';
@@ -637,6 +662,9 @@
                 else if (p.background_noise_severity === 'medium') severityClass = 'tag-medium';
                 else if (p.background_noise_severity === 'low') severityClass = 'tag-low';
 
+                const itemTokens = u.total_tokens ? u.total_tokens.toLocaleString() : 'N/A';
+                const itemCost = u.cost_usd ? '$' + u.cost_usd.toFixed(6) : 'N/A';
+
                 tr.innerHTML = `
                     <td><strong>${item.filename}</strong></td>
                     <td><span class="enum-tag ${toneClass}">${p.emotional_tone || 'N/A'}</span></td>
@@ -647,6 +675,8 @@
                     <td><span class="enum-tag tag-clear">${p.audio_quality || 'clear'}</span></td>
                     <td><span class="enum-tag ${p.speaker_overlap_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.speaker_overlap_present}</span></td>
                     <td><span class="enum-tag ${p.long_silence_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.long_silence_present}</span></td>
+                    <td><span class="token-badge">${itemTokens}</span></td>
+                    <td><strong style="color: var(--accent-green)">${itemCost}</strong></td>
                     <td><strong>${p.confidence ? p.confidence.toFixed(2) : '0.90'}</strong></td>
                 `;
                 tbody.appendChild(tr);
@@ -682,12 +712,16 @@
                 return;
             }
 
-            let md = '| File Name | Emotional Tone | Emotional Intensity | Noise Present | Noise Type | Noise Severity | Audio Quality | Speaker Overlap | Long Silence | Confidence |\n';
-            md += '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
+            let md = '| File Name | Emotional Tone | Emotional Intensity | Noise Present | Noise Type | Noise Severity | Audio Quality | Speaker Overlap | Long Silence | Tokens | Est. Cost | Confidence |\n';
+            md += '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
 
             currentBatchData.results.forEach(item => {
                 const p = item.prediction || {};
-                md += `| ${item.filename} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
+                const u = item.usage || {};
+                const t = u.total_tokens ? u.total_tokens : 'N/A';
+                const c = u.cost_usd ? '$' + u.cost_usd.toFixed(6) : 'N/A';
+
+                md += `| ${item.filename} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${t} | ${c} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
             });
 
             navigator.clipboard.writeText(md).then(() => {

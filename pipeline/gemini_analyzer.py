@@ -1,6 +1,7 @@
 # pipeline/gemini_analyzer.py
 import os
 import mimetypes
+from typing import Dict, Any, Tuple
 from google import genai
 from google.genai import types
 from pipeline.schema import AudioAnalysisResult
@@ -21,10 +22,11 @@ def get_gemini_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:
+def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dict[str, Any]]:
     """
     Analyzes an audio clip directly using Google Gemini Flash Multimodal LLM
     with native Structured Output (Pydantic schema adhering strictly to AutoAce specifications).
+    Returns (result_schema, usage_stats_dict).
     """
     filename = os.path.basename(audio_path)
     logger.info(f"[{filename}] Initializing Gemini 3.5 Lite Multimodal Audio Analysis...")
@@ -105,8 +107,39 @@ def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:
         else:
             result = AudioAnalysisResult.model_validate_json(response.text)
 
+        usage_stats = {
+            "prompt_tokens": 0,
+            "candidate_tokens": 0,
+            "total_tokens": 0,
+            "cost_usd": 0.0
+        }
+
+        # Calculate exact token consumption and cost
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            usage = response.usage_metadata
+            prompt_tokens = usage.prompt_token_count or 0
+            candidate_tokens = usage.candidates_token_count or 0
+            total_tokens = usage.total_token_count or 0
+            
+            # Pricing for gemini-3.5-flash-lite Standard Paid Tier ($0.30 / 1M input, $2.50 / 1M output)
+            input_cost = (prompt_tokens / 1_000_000) * 0.30
+            output_cost = (candidate_tokens / 1_000_000) * 2.50
+            total_cost_usd = input_cost + output_cost
+
+            usage_stats = {
+                "prompt_tokens": prompt_tokens,
+                "candidate_tokens": candidate_tokens,
+                "total_tokens": total_tokens,
+                "cost_usd": round(total_cost_usd, 6)
+            }
+            
+            logger.info(
+                f"[{filename}] Tokens: Prompt={prompt_tokens}, Output={candidate_tokens}, Total={total_tokens} | "
+                f"Cost: ${total_cost_usd:.6f} USD (~{total_cost_usd*100:.4f}¢)"
+            )
+
         logger.info(f"[{filename}] Analysis complete: tone='{result.emotional_tone}', intensity='{result.emotional_intensity}', noise='{result.background_noise_type}', confidence={result.confidence}")
-        return result
+        return result, usage_stats
 
     except Exception as e:
         logger.error(f"[{filename}] Gemini API call failed: {e}")
