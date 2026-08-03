@@ -8,7 +8,7 @@ from pipeline.logger import get_logger
 
 logger = get_logger("GeminiAnalyzer")
 
-MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+MODEL_NAME = "gemini-3.5-flash-lite"
 
 
 def get_gemini_client() -> genai.Client:
@@ -68,7 +68,7 @@ def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:
         "3. background_noise_present (Boolean: true | false):\n"
         "   - true if meaningful non-speech sound is audible. Barely perceptible artifacts should NOT automatically count.\n\n"
         "4. background_noise_type (String):\n"
-        "   - A concise description of dominant background noise, such as 'office chatter', 'music', 'road noise', 'television', 'keyboard typing', 'wind', 'sharp static', or 'mechanical noise'. Empty string '' if background_noise_present is false.\n\n"
+        "   - A concise description of background noise, such as 'office chatter', 'music', 'road noise', 'television', 'keyboard typing', 'wind', 'sharp static', or 'mechanical noise'. Empty string '' if background_noise_present is false.\n\n"
         "5. background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
         "   - none: no meaningful noise.\n"
         "   - low: audible but does not interfere.\n"
