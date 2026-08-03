@@ -22,9 +22,8 @@ An end-to-end multimodal voice analytics and audio segmentation pipeline powered
      - `long_silence_present` (`true` / `false`)
      - `confidence` (`0.0` - `1.0`)
 
-3. **Cost Optimization & Native Async Batch API**:
-   - Integrates Google's native Async Batch API (`client.batches.create`) using JSONL request payloads for multi-file & `.zip` directory uploads.
-   - Offers **50% discount rate** ($0.15/1M input, $1.25/1M output), staying strictly within budget thresholds (<$0.003/min).
+3. **Cost Optimization**:
+   - Runs on Gemini 3.5 Flash-Lite ($0.30/1M input, $2.50/1M output), staying strictly within budget thresholds (<$0.003/min).
 
 4. **Telemetry & Audio Duration Tracking**:
    - Tracks total audio content play duration (`mutagen` header parser) separately from token counts and cost calculation.
@@ -45,9 +44,9 @@ echoPulse/
 ├── pipeline/
 │   ├── __init__.py
 │   ├── schema.py              # Pydantic schema model for Gemini Structured Output
-│   ├── gemini_analyzer.py     # Multimodal Gemini Flash audio reasoning & Batch API module
+│   ├── gemini_analyzer.py     # Multimodal Gemini Flash audio reasoning module
 │   ├── audio_utils.py         # Mutagen audio duration calculation module
-│   ├── runner.py              # Batch runner orchestrator
+│   ├── runner.py              # Directory & ZIP runner orchestrator
 │   └── logger.py              # Timestamped logger module
 ├── web/
 │   └── index.html             # Light-Theme Web UI Dashboard
@@ -150,7 +149,7 @@ pred, usage = analyze_audio_file("path/to/sample.mp3")
 print("Single Audio Prediction:", pred.model_dump())
 print("Usage Stats:", usage)
 
-# 2. Process a directory of audio clips using native Gemini Batch API (50% Off Tier)
+# 2. Process a directory of audio clips
 batch_results = process_batch("path/to/audio_folder")
 print(f"Processed {batch_results['total_files']} files. Total Audio: {batch_results['total_audio_duration_formatted']}")
 ```
