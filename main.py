@@ -116,10 +116,8 @@ def get_results():
     global CURRENT_BATCH_RESULTS
     logger.info("Fetching batch results...")
     if CURRENT_BATCH_RESULTS is None:
-        if os.path.exists("../audio_seg_pipeline/test_docs"):
-            logger.info("No active batch in memory cache. Loading default test batch from 'test_docs'...")
-            CURRENT_BATCH_RESULTS = process_batch("../audio_seg_pipeline/test_docs")
-        elif os.path.exists("test_docs"):
+        if os.path.exists("test_docs"):
+            logger.info("Loading initial batch from local 'test_docs' directory...")
             CURRENT_BATCH_RESULTS = process_batch("test_docs")
         else:
             return {"total_files": 0, "results": []}

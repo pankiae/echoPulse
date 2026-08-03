@@ -10,17 +10,15 @@ logger = get_logger("GeminiAnalyzer")
 
 MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
-_client = None
-
 
 def get_gemini_client() -> genai.Client:
-    global _client
-    if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            logger.warning("GEMINI_API_KEY environment variable not set. Initializing client without explicit key.")
-        _client = genai.Client(api_key=api_key)
-    return _client
+    """
+    Dynamically fetches Gemini client evaluating GEMINI_API_KEY environment variable on every call.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.warning("GEMINI_API_KEY environment variable not set. Initializing client without explicit key.")
+    return genai.Client(api_key=api_key)
 
 
 def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:

@@ -58,7 +58,7 @@ Ensure Python 3.9+ is installed.
 
 ```powershell
 # Navigate to project directory
-cd c:\Users\panka\Downloads\Projects\echoPulse
+cd echoPulse
 
 # Create virtual environment
 python -m venv .venv
