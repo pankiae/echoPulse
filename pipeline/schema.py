@@ -32,20 +32,85 @@ class AudioQuality(str, Enum):
 
 
 class AudioAnalysisResult(BaseModel):
-    emotional_tone: EmotionalTone = Field(..., description="Primary emotional tone expressed by customer")
-    emotional_intensity: EmotionalIntensity = Field(..., description="Strength of emotional tone")
-    background_noise_present: bool = Field(..., description="Audible background non-speech sound")
-    background_noise_type: str = Field(default="", description="Concise description of dominant background noise (e.g., 'office chatter', 'TV', 'sharp static', 'traffic', 'siren', or empty string if no noise)")
-    background_noise_severity: BackgroundNoiseSeverity = Field(..., description="Impact of noise on call clarity")
-    audio_quality: AudioQuality = Field(..., description="Technical audio quality independent of emotion")
-    speaker_overlap_present: bool = Field(..., description="Multiple speakers talking at once")
-    long_silence_present: bool = Field(..., description="Unusual dead air / continuous silence period (>4 seconds)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score from 0.0 to 1.0")
+    emotional_tone: EmotionalTone = Field(
+        ...,
+        description=(
+            "Primary emotional tone expressed by customer. "
+            "neutral: no clear positive or negative emotion. "
+            "satisfied: pleased, relieved, appreciative, or clearly positive. "
+            "frustrated: annoyed, impatient, or dissatisfied without strong anger. "
+            "upset: clearly angry, agitated, or strongly dissatisfied. "
+            "distressed: highly emotional, overwhelmed, panicked, crying, or emotionally escalated."
+        ),
+    )
+    emotional_intensity: EmotionalIntensity = Field(
+        ...,
+        description=(
+            "Strength of detected emotional tone. "
+            "low: subtle or mild. "
+            "medium: clear and sustained. "
+            "high: strong, escalated, or requiring immediate attention."
+        ),
+    )
+    background_noise_present: bool = Field(
+        ...,
+        description=(
+            "Whether meaningful non-speech sound is audible in the background. "
+            "Barely perceptible artifacts should not count as background noise."
+        ),
+    )
+    background_noise_type: str = Field(
+        default="",
+        description=(
+            "A concise description of the dominant background noise, such as office chatter, "
+            "music, road noise, television, keyboard typing, wind, or mechanical noise. "
+            "Must be empty string '' if background_noise_present is false."
+        ),
+    )
+    background_noise_severity: BackgroundNoiseSeverity = Field(
+        ...,
+        description=(
+            "How much the noise affects the call. "
+            "none: no meaningful noise. "
+            "low: audible but does not interfere. "
+            "medium: occasionally interferes with understanding. "
+            "high: materially impairs conversation or analysis."
+        ),
+    )
+    audio_quality: AudioQuality = Field(
+        ...,
+        description=(
+            "Overall technical quality of audio independent of emotion. "
+            "clear: good technical quality. "
+            "slightly_impaired: mild distortion/clipping/static. "
+            "severely_impaired: severe distortion, low volume, muffled speech, robotic audio, or severe packet loss."
+        ),
+    )
+    speaker_overlap_present: bool = Field(
+        ...,
+        description=(
+            "Whether two or more speakers talk at the same time enough to affect understanding or analysis."
+        ),
+    )
+    long_silence_present: bool = Field(
+        ...,
+        description=(
+            "Whether the clip contains an unusually long period of silence or dead air that may indicate a call-flow or audio problem."
+        ),
+    )
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "The model's confidence in the overall result from 0.0 (substantial uncertainty) to 1.0 (high confidence)."
+        ),
+    )
 
 
 class BatchFileResult(BaseModel):
     filename: str
-    status: str = "success"  # "success" or "failed"
+    status: str = "success"
     error: Optional[str] = None
     prediction: Optional[AudioAnalysisResult] = None
     ground_truth: Optional[dict] = None

@@ -8,7 +8,6 @@ from pipeline.logger import get_logger
 
 logger = get_logger("GeminiAnalyzer")
 
-# Recommended multimodal Gemini 3.5 / Flash model for structured audio extraction
 MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
 _client = None
@@ -27,14 +26,13 @@ def get_gemini_client() -> genai.Client:
 def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:
     """
     Analyzes an audio clip directly using Google Gemini Flash Multimodal LLM
-    with native Structured Output (Pydantic schema).
+    with native Structured Output (Pydantic schema adhering strictly to AutoAce specifications).
     """
     filename = os.path.basename(audio_path)
     logger.info(f"[{filename}] Initializing Gemini 3.5 Lite Multimodal Audio Analysis...")
 
     client = get_gemini_client()
 
-    # Determine mime-type based on extension
     mime_type, _ = mimetypes.guess_type(audio_path)
     if not mime_type or not mime_type.startswith("audio/"):
         ext = os.path.splitext(audio_path)[1].lower()
@@ -55,21 +53,41 @@ def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:
     audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
 
     prompt = (
-        "You are an expert audio analytics and voice segmentation AI. "
+        "You are an expert audio analytics and voice segmentation AI for call recording evaluation. "
         "Analyze this audio clip thoroughly and output a strictly formatted structured JSON response matching the required schema.\n\n"
-        "Instructions:\n"
-        "1. emotional_tone: Primary emotional tone expressed by customer ('neutral', 'satisfied', 'frustrated', 'upset', 'distressed').\n"
-        "2. emotional_intensity: Strength of the emotional tone ('low', 'medium', 'high'). If tone is 'neutral', intensity must be 'low'.\n"
-        "3. background_noise_present: true if non-speech background sound is audible, false otherwise.\n"
-        "4. background_noise_type: Description of dominant background noise (e.g., 'office chatter', 'TV', 'sharp static', 'traffic', 'siren'). Empty string '' if no background noise.\n"
-        "5. background_noise_severity: Noise impact on clarity ('none', 'low', 'medium', 'high'). Must be 'none' if background_noise_present is false.\n"
-        "6. audio_quality: Technical audio quality ('clear', 'slightly_impaired', 'severely_impaired').\n"
-        "7. speaker_overlap_present: true if multiple speakers talk at the same time.\n"
-        "8. long_silence_present: true if there is an unusual period of continuous dead air/silence (> 4 seconds).\n"
-        "9. confidence: Float score between 0.0 and 1.0 representing analysis confidence."
+        "EVALUATION RULES & DEFINITIONS:\n"
+        "1. emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
+        "   - neutral: no clear positive or negative emotion.\n"
+        "   - satisfied: pleased, relieved, appreciative, or clearly positive.\n"
+        "   - frustrated: annoyed, impatient, or dissatisfied without strong anger or distress.\n"
+        "   - upset: clearly angry, agitated, or strongly dissatisfied.\n"
+        "   - distressed: highly emotional, overwhelmed, panicked, crying, or emotionally escalated.\n"
+        "   *Note: Do NOT infer frustration or distress solely from loudness.\n\n"
+        "2. emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
+        "   - low: subtle or mild.\n"
+        "   - medium: clear and sustained.\n"
+        "   - high: strong, escalated, or likely to require attention.\n\n"
+        "3. background_noise_present (Boolean: true | false):\n"
+        "   - true if meaningful non-speech sound is audible. Barely perceptible artifacts should NOT automatically count.\n\n"
+        "4. background_noise_type (String):\n"
+        "   - A concise description of dominant background noise, such as 'office chatter', 'music', 'road noise', 'television', 'keyboard typing', 'wind', 'sharp static', or 'mechanical noise'. Empty string '' if background_noise_present is false.\n\n"
+        "5. background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
+        "   - none: no meaningful noise.\n"
+        "   - low: audible but does not interfere.\n"
+        "   - medium: occasionally interferes with understanding.\n"
+        "   - high: materially impairs conversation or analysis.\n\n"
+        "6. audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
+        "   - Technical quality independent of emotion. Consider distortion, clipping, echo, static, low volume, muffled speech, robotic audio, and packet loss.\n"
+        "   *Note: Do NOT infer background noise solely from poor audio quality.\n\n"
+        "7. speaker_overlap_present (Boolean: true | false):\n"
+        "   - true if two or more speakers talk at the same time enough to affect understanding or analysis.\n\n"
+        "8. long_silence_present (Boolean: true | false):\n"
+        "   - true if the clip contains an unusually long period of silence or dead air that may indicate a call-flow or audio problem.\n\n"
+        "9. confidence (Number: 0.0 to 1.0):\n"
+        "   - The model's confidence in the overall result. Values near 1.0 indicate high confidence; values near 0.0 indicate substantial uncertainty."
     )
 
-    logger.info(f"[{filename}] Sending multimodal prompt to Gemini model '{MODEL_NAME}' with structured Pydantic response_schema...")
+    logger.info(f"[{filename}] Sending prompt and audio tensor to Gemini '{MODEL_NAME}' with structured Pydantic response_schema...")
 
     try:
         response = client.models.generate_content(
@@ -82,18 +100,16 @@ def analyze_audio_with_gemini(audio_path: str) -> AudioAnalysisResult:
             ),
         )
 
-        logger.info(f"[{filename}] Gemini raw output response received successfully.")
+        logger.info(f"[{filename}] Gemini response received successfully.")
         
-        # Parsed output is available in response.parsed or via standard validation
         if response.parsed:
             result = response.parsed
         else:
             result = AudioAnalysisResult.model_validate_json(response.text)
 
-        logger.info(f"[{filename}] Analysis complete: tone='{result.emotional_tone}', noise='{result.background_noise_type}', confidence={result.confidence}")
+        logger.info(f"[{filename}] Analysis complete: tone='{result.emotional_tone}', intensity='{result.emotional_intensity}', noise='{result.background_noise_type}', confidence={result.confidence}")
         return result
 
     except Exception as e:
         logger.error(f"[{filename}] Gemini API call failed: {e}")
-        # Graceful fallback in case API key is missing or quota error occurs
         raise e
