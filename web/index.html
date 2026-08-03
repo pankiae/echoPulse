@@ -1,0 +1,664 @@
+<!-- web/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoPulse AI - Multimodal Gemini Voice Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #f8fafc;
+            --card-bg: #ffffff;
+            --accent-primary: #2563eb;
+            --accent-sky: #0284c7;
+            --accent-green: #16a34a;
+            --accent-amber: #d97706;
+            --accent-red: #dc2626;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --shadow-subtle: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            --shadow-card: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+        }
+
+        * {
+            box-sizing: border-color;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header Bar - Light Theme */
+        header {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.1rem 2.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            font-weight: 800;
+            padding: 0.45rem 0.85rem;
+            border-radius: 9px;
+            font-size: 0.9rem;
+            letter-spacing: 1.2px;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+        }
+
+        .logo-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.3px;
+        }
+
+        .logo-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .user-status {
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .badge-live {
+            background: #f0fdf4;
+            color: var(--accent-green);
+            border: 1px solid #bbf7d0;
+            padding: 0.3rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .badge-live::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* App Container */
+        .container {
+            max-width: 1680px;
+            margin: 1.75rem auto;
+            padding: 0 1.75rem;
+            width: 100%;
+            flex: 1;
+        }
+
+        /* Login Overlay */
+        #loginOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(248, 250, 252, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 2.5rem;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .login-card h2 {
+            margin-bottom: 0.4rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .login-card p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 1.6rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.35rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 0.45rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 9px;
+            padding: 0.8rem 1rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent-primary);
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 0.85rem;
+            border-radius: 9px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        /* Metric Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.35rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .metric-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.35rem 1.5rem;
+            box-shadow: var(--shadow-subtle);
+        }
+
+        .metric-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .metric-value {
+            font-size: 1.85rem;
+            font-weight: 800;
+            margin-top: 0.35rem;
+            color: var(--text-main);
+        }
+
+        /* Main Content Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 310px 1fr;
+            gap: 1.75rem;
+        }
+
+        /* Upload Panel */
+        .upload-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.6rem;
+            box-shadow: var(--shadow-subtle);
+            height: fit-content;
+        }
+
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 2.2rem 1.2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--accent-primary);
+            background: #eff6ff;
+        }
+
+        /* Table View */
+        .results-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.6rem;
+            box-shadow: var(--shadow-subtle);
+            overflow-x: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.35rem;
+        }
+
+        .panel-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f1f5f9;
+            color: #475569;
+            padding: 0.95rem 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            letter-spacing: 0.6px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 0.95rem 0.85rem;
+            border-bottom: 1px solid #f1f5f9;
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .enum-tag {
+            padding: 0.3rem 0.65rem;
+            border-radius: 7px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-block;
+        }
+
+        .tag-upset { background: #fee2e2; color: #991b1b; }
+        .tag-satisfied { background: #dcfce7; color: #166534; }
+        .tag-neutral { background: #f1f5f9; color: #475569; }
+        .tag-frustrated { background: #fef3c7; color: #92400e; }
+        .tag-distressed { background: #fce7f3; color: #9d174d; }
+        
+        .tag-high { background: #fee2e2; color: #991b1b; }
+        .tag-medium { background: #fef3c7; color: #92400e; }
+        .tag-low { background: #e0f2fe; color: #075985; }
+        .tag-none { background: #f1f5f9; color: #64748b; }
+        .tag-clear { background: #dcfce7; color: #166534; }
+        
+        .tag-boolean-true { background: #fee2e2; color: #991b1b; font-weight: 800; }
+        .tag-boolean-false { background: #f1f5f9; color: #64748b; }
+
+        .btn-action {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.55rem 1rem;
+            border-radius: 9px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .btn-action:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            background: #eff6ff;
+        }
+
+        .btn-copy {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: var(--accent-primary);
+        }
+
+        .btn-copy:hover {
+            background: var(--accent-primary);
+            color: #ffffff;
+        }
+
+        /* API Key Banner */
+        .api-banner {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.875rem;
+        }
+
+        .api-banner input {
+            background: #ffffff;
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 0.5rem 0.8rem;
+            font-size: 0.85rem;
+            width: 320px;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="logo-group">
+            <div class="logo-badge">ECHOPULSE</div>
+            <div>
+                <div class="logo-title">Voice Analytics & Audio Segmentation</div>
+                <div class="logo-subtitle">Powered by Multimodal Google Gemini 3.5 Lite</div>
+            </div>
+        </div>
+        <div class="user-status">
+            <span class="badge-live">Gemini Flash Multimodal</span>
+            <span id="userTag" style="font-weight: 600;">Evaluator Workspace</span>
+        </div>
+    </header>
+
+    <!-- Login Modal -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h2>EchoPulse Login</h2>
+            <p>Access the Gemini 3.5 Lite Multimodal Batch Evaluator.</p>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUser" value="evaluator" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPass" value="eval2026" required>
+                </div>
+                <button type="submit" class="btn-primary">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard Main -->
+    <div class="container">
+
+        <!-- API Key Config Banner -->
+        <div class="api-banner">
+            <div>
+                <strong style="color: var(--accent-primary)">Gemini API Configuration:</strong>
+                <span style="color: var(--text-muted); margin-left: 0.5rem;">Enter your Google Gemini API key or set <code>GEMINI_API_KEY</code> environment variable.</span>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="password" id="apiKeyInput" placeholder="AIzaSy... (Gemini API Key)">
+                <button class="btn-action" onclick="saveApiKey()">Save Key</button>
+            </div>
+        </div>
+        
+        <!-- Summary Stats -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Processed Clips</div>
+                <div class="metric-value" id="statTotal">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Multimodal Model</div>
+                <div class="metric-value" style="color: var(--accent-primary); font-size: 1.35rem;">Gemini 3.5 Lite</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Structured Output</div>
+                <div class="metric-value" style="color: var(--accent-green); font-size: 1.35rem;">Native Pydantic</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">UI Theme</div>
+                <div class="metric-value" style="color: var(--accent-sky); font-size: 1.35rem;">Light Theme</div>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            
+            <!-- Upload Column -->
+            <div class="upload-panel">
+                <h3 style="margin-bottom: 1.2rem; font-size: 1.05rem; font-weight: 800;">Audio Batch Upload</h3>
+                <div class="drop-zone" onclick="document.getElementById('batchInput').click()">
+                    <svg width="42" height="42" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-bottom: 0.6rem; color: var(--accent-primary)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <p style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">Click or Drag Audio Files</p>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Supports ZIP with labels.csv or OGG/MP3/WAV</p>
+                    <input type="file" id="batchInput" style="display:none" onchange="uploadBatchFile(this.files[0])">
+                </div>
+                <div id="uploadProgress" style="display:none; margin-top: 1.2rem; font-size: 0.85rem; font-weight: 600; color: var(--accent-primary); text-align: center;">
+                    Running Gemini 3.5 Lite audio reasoning...
+                </div>
+            </div>
+
+            <!-- Table Panel -->
+            <div class="results-panel">
+                <div class="panel-header">
+                    <div class="panel-title">Structured Voice Analysis (Gemini Multimodal Output)</div>
+                    <div>
+                        <button class="btn-action btn-copy" onclick="copyAsMarkdown()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            Copy Markdown Table
+                        </button>
+                        <button class="btn-action" onclick="window.location.href='/api/export/csv'">Export CSV</button>
+                        <button class="btn-action" onclick="window.location.href='/api/export/json'">Export JSON</button>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Emotional Tone</th>
+                            <th>Emotional Intensity</th>
+                            <th>Noise Present</th>
+                            <th>Noise Type</th>
+                            <th>Noise Severity</th>
+                            <th>Audio Quality</th>
+                            <th>Speaker Overlap</th>
+                            <th>Long Silence</th>
+                            <th>Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTable">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        let currentBatchData = null;
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('loginUser').value);
+            formData.append('password', document.getElementById('loginPass').value);
+
+            try {
+                const res = await fetch('/api/login', { method: 'POST', body: formData });
+                if (res.ok) {
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    loadResults();
+                } else {
+                    alert('Invalid login credentials');
+                }
+            } catch (err) {
+                alert('Error connecting to backend API');
+            }
+        });
+
+        async function loadResults() {
+            try {
+                const res = await fetch('/api/results');
+                const data = await res.json();
+                currentBatchData = data;
+                renderTable(data);
+            } catch (e) {
+                console.log('Error loading initial results:', e);
+            }
+        }
+
+        async function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value;
+            if (!key) {
+                alert('Please enter a valid Gemini API key');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('api_key', key);
+            const res = await fetch('/api/config_key', { method: 'POST', body: formData });
+            if (res.ok) {
+                alert('Gemini API key updated successfully!');
+            }
+        }
+
+        function renderTable(data) {
+            document.getElementById('statTotal').innerText = data.total_files || 0;
+            const tbody = document.getElementById('resultsTable');
+            tbody.innerHTML = '';
+
+            (data.results || []).forEach(item => {
+                const p = item.prediction || {};
+                const tr = document.createElement('tr');
+
+                let toneClass = 'tag-neutral';
+                if (p.emotional_tone === 'upset') toneClass = 'tag-upset';
+                else if (p.emotional_tone === 'satisfied') toneClass = 'tag-satisfied';
+                else if (p.emotional_tone === 'frustrated') toneClass = 'tag-frustrated';
+                else if (p.emotional_tone === 'distressed') toneClass = 'tag-distressed';
+
+                let intensityClass = 'tag-medium';
+                if (p.emotional_intensity === 'high') intensityClass = 'tag-high';
+                else if (p.emotional_intensity === 'low') intensityClass = 'tag-low';
+
+                let severityClass = 'tag-none';
+                if (p.background_noise_severity === 'high') severityClass = 'tag-high';
+                else if (p.background_noise_severity === 'medium') severityClass = 'tag-medium';
+                else if (p.background_noise_severity === 'low') severityClass = 'tag-low';
+
+                tr.innerHTML = `
+                    <td><strong>${item.filename}</strong></td>
+                    <td><span class="enum-tag ${toneClass}">${p.emotional_tone || 'N/A'}</span></td>
+                    <td><span class="enum-tag ${intensityClass}">${p.emotional_intensity || 'N/A'}</span></td>
+                    <td><span class="enum-tag ${p.background_noise_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.background_noise_present}</span></td>
+                    <td>${p.background_noise_type ? `<strong>${p.background_noise_type}</strong>` : '<span style="color: var(--text-muted)">""</span>'}</td>
+                    <td><span class="enum-tag ${severityClass}">${p.background_noise_severity || 'none'}</span></td>
+                    <td><span class="enum-tag tag-clear">${p.audio_quality || 'clear'}</span></td>
+                    <td><span class="enum-tag ${p.speaker_overlap_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.speaker_overlap_present}</span></td>
+                    <td><span class="enum-tag ${p.long_silence_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.long_silence_present}</span></td>
+                    <td><strong>${p.confidence ? p.confidence.toFixed(2) : '0.90'}</strong></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function uploadBatchFile(file) {
+            if (!file) return;
+            document.getElementById('uploadProgress').style.display = 'block';
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/upload_batch', { method: 'POST', body: formData });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentBatchData = data;
+                    renderTable(data);
+                } else {
+                    const errJson = await res.json();
+                    alert('Error: ' + (errJson.detail || 'Failed to process audio file with Gemini'));
+                }
+            } catch (err) {
+                alert('Upload error');
+            } finally {
+                document.getElementById('uploadProgress').style.display = 'none';
+            }
+        }
+
+        function copyAsMarkdown() {
+            if (!currentBatchData || !currentBatchData.results || currentBatchData.results.length === 0) {
+                alert('No results available to copy');
+                return;
+            }
+
+            let md = '| File Name | Emotional Tone | Emotional Intensity | Noise Present | Noise Type | Noise Severity | Audio Quality | Speaker Overlap | Long Silence | Confidence |\n';
+            md += '| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n';
+
+            currentBatchData.results.forEach(item => {
+                const p = item.prediction || {};
+                md += `| ${item.filename} | ${p.emotional_tone || 'N/A'} | ${p.emotional_intensity || 'N/A'} | ${p.background_noise_present} | ${p.background_noise_type ? p.background_noise_type : '""'} | ${p.background_noise_severity || 'none'} | ${p.audio_quality || 'clear'} | ${p.speaker_overlap_present} | ${p.long_silence_present} | ${p.confidence ? p.confidence.toFixed(2) : '0.90'} |\n`;
+            });
+
+            navigator.clipboard.writeText(md).then(() => {
+                alert('Markdown Table copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy to clipboard: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>
