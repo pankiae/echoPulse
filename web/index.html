@@ -682,6 +682,17 @@
                 const u = item.usage || {};
                 const tr = document.createElement('tr');
 
+                if (item.status === 'failed') {
+                    tr.innerHTML = `
+                        <td><strong>${item.filename}</strong></td>
+                        <td colspan="12" style="color: var(--accent-red); font-weight: 600;">
+                            ⚠️ Processing Failed: ${item.error || 'Failed during Gemini multimodal analysis'}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                    return;
+                }
+
                 let toneClass = 'tag-neutral';
                 if (p.emotional_tone === 'upset') toneClass = 'tag-upset';
                 else if (p.emotional_tone === 'satisfied') toneClass = 'tag-satisfied';
@@ -697,24 +708,32 @@
                 else if (p.background_noise_severity === 'medium') severityClass = 'tag-medium';
                 else if (p.background_noise_severity === 'low') severityClass = 'tag-low';
 
+                let qualityClass = 'tag-clear';
+                if (p.audio_quality === 'severely_impaired') qualityClass = 'tag-upset';
+                else if (p.audio_quality === 'slightly_impaired') qualityClass = 'tag-medium';
+
                 const audioLen = u.audio_duration_formatted || (u.audio_duration_seconds ? u.audio_duration_seconds.toFixed(1) + 's' : 'N/A');
                 const itemTokens = u.total_tokens ? u.total_tokens.toLocaleString() : 'N/A';
-                const itemCost = u.cost_usd ? '$' + u.cost_usd.toFixed(6) : 'N/A';
+                const itemCost = u.cost_usd !== undefined ? '$' + u.cost_usd.toFixed(6) : 'N/A';
+
+                const noisePresentBool = p.background_noise_present === true;
+                const overlapBool = p.speaker_overlap_present === true;
+                const silenceBool = p.long_silence_present === true;
 
                 tr.innerHTML = `
                     <td><strong>${item.filename}</strong></td>
                     <td><span class="duration-badge">${audioLen}</span></td>
                     <td><span class="enum-tag ${toneClass}">${p.emotional_tone || 'N/A'}</span></td>
                     <td><span class="enum-tag ${intensityClass}">${p.emotional_intensity || 'N/A'}</span></td>
-                    <td><span class="enum-tag ${p.background_noise_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.background_noise_present}</span></td>
+                    <td><span class="enum-tag ${noisePresentBool ? 'tag-boolean-true' : 'tag-boolean-false'}">${noisePresentBool}</span></td>
                     <td>${p.background_noise_type ? `<strong>${p.background_noise_type}</strong>` : '<span style="color: var(--text-muted)">""</span>'}</td>
                     <td><span class="enum-tag ${severityClass}">${p.background_noise_severity || 'none'}</span></td>
-                    <td><span class="enum-tag tag-clear">${p.audio_quality || 'clear'}</span></td>
-                    <td><span class="enum-tag ${p.speaker_overlap_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.speaker_overlap_present}</span></td>
-                    <td><span class="enum-tag ${p.long_silence_present ? 'tag-boolean-true' : 'tag-boolean-false'}">${p.long_silence_present}</span></td>
+                    <td><span class="enum-tag ${qualityClass}">${p.audio_quality || 'clear'}</span></td>
+                    <td><span class="enum-tag ${overlapBool ? 'tag-boolean-true' : 'tag-boolean-false'}">${overlapBool}</span></td>
+                    <td><span class="enum-tag ${silenceBool ? 'tag-boolean-true' : 'tag-boolean-false'}">${silenceBool}</span></td>
                     <td><span class="token-badge">${itemTokens}</span></td>
                     <td><strong style="color: var(--accent-green)">${itemCost} ${u.is_batch ? '<span class="batch-discount-badge">50% OFF</span>' : ''}</strong></td>
-                    <td><strong>${p.confidence ? p.confidence.toFixed(2) : '0.90'}</strong></td>
+                    <td><strong>${p.confidence !== undefined ? p.confidence.toFixed(2) : '0.90'}</strong></td>
                 `;
                 tbody.appendChild(tr);
             });

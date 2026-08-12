@@ -3,7 +3,7 @@ import os
 import time
 import json
 import mimetypes
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
 from google import genai
 from google.genai import types
 from pipeline.schema import AudioAnalysisResult
@@ -157,7 +157,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         logger.error(f"[{filename}] Gemini Single API call failed: {e}")
         raise e
 
-def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, AudioAnalysisResult, Dict[str, Any]]]:
+def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[AudioAnalysisResult], Dict[str, Any]]]:
     """
     Submits a native Gemini Async Batch Job for Audio Files via JSONL Input File upload.
     Waits for files to transition to ACTIVE state to prevent 400 FAILED_PRECONDITION errors.
