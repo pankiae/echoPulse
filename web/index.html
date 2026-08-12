@@ -537,6 +537,7 @@
                 <div class="metric-label">Total API Cost (USD)</div>
                 <div class="metric-value" id="statCost" style="color: var(--accent-green); font-size: 1.5rem;">$0.000000</div>
                 <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;" id="statCostCents">~0.0000¢ USD</div>
+                <div style="font-size: 0.75rem; color: var(--accent-primary); font-weight: 700; margin-top: 0.25rem;" id="statCostPerMin">Cost/Min: $0.000000 (Ceiling: $0.003)</div>
             </div>
         </div>
 
@@ -669,6 +670,9 @@
             
             document.getElementById('statCost').innerText = '$' + totalCost.toFixed(6);
             document.getElementById('statCostCents').innerHTML = `~${(totalCost * 100).toFixed(4)}¢ USD ${isBatchTier ? '<span class="batch-discount-badge">50% OFF BATCH TIER</span>' : ''}`;
+            
+            const costPerMin = data.cost_per_audio_minute_usd || (totalAudioSec > 0 ? (totalCost / (totalAudioSec / 60)) : 0.0);
+            document.getElementById('statCostPerMin').innerText = `Cost/Min: $${costPerMin.toFixed(6)} (Ceiling: $0.003)`;
 
             const tbody = document.getElementById('resultsTable');
             tbody.innerHTML = '';

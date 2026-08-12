@@ -34,46 +34,44 @@ def get_gemini_client() -> genai.Client:
     return _client_cache[api_key]
 
 
-# Upgraded Prompt Directive with 2-Phase Acoustic Protocol
+# Upgraded Prompt Directive aligned with AutoAce AI Trial Specifications
 PROMPT_TEXT = (
     "You are an elite acoustic forensics AI specialized in call recording signal analysis.\n"
-    "Perform a 2-PHASE high-precision audit on this audio clip to achieve P95 accuracy across all schema fields.\n\n"
-    "=== PHASE 1: BACKGROUND SOUNDSCAPE AUDIT (DO THIS FIRST) ===\n"
-    "1. STEP-BY-STEP NOISE DETECTION:\n"
-    "   - Isolate the pauses, zero-speech gaps between words, and trailing background layers underneath human voice.\n"
-    "   - Inspect for CONSTANT noise: electrical hiss, line static, hum, fan noise, air conditioning, white noise.\n"
-    "   - Inspect for INTERMITTENT noise: TV speech/chatter, background television sound, office background voices, road noise, keyboard clicks, mic rustle.\n"
-    "   - Document your findings step-by-step in `acoustic_audit_reasoning` and list timestamps in `detected_noise_timestamps` BEFORE setting any booleans.\n\n"
-    "2. CRITICAL RULE FOR NOISE vs QUALITY:\n"
-    "   - Human speech clarity DOES NOT override background noise!\n"
-    "   - If speech is clear BUT background static, hiss, or TV is audible in gaps, set `background_noise_present = true` and `audio_quality = 'clear'` (or `'slightly_impaired'`).\n"
-    "   - Set `background_noise_present = false` ONLY if the room soundscape is completely clean or studio silent (>0 dB SNR).\n\n"
-    "=== PHASE 2: FIELD CLASSIFICATION RULES ===\n"
+    "Perform a high-precision audit on this audio clip to achieve top accuracy across all schema fields.\n\n"
+    "=== NOISE DETECTION RULES ===\n"
+    "1. Isolate the pauses, zero-speech gaps between words, and background layers underneath human voice.\n"
+    "2. Inspect for meaningful background sound: office chatter, television, road noise, keyboard clicks, music, mechanical noise, or heavy line hiss/static.\n"
+    "3. Set `background_noise_present = true` ONLY if meaningful non-speech sound is audible in the background.\n"
+    "4. CRITICAL: Barely perceptible background noise artifacts, micro static, or subtle room atmosphere should NOT automatically count as background noise. In such cases, set `background_noise_present = false` and `background_noise_severity = 'none'`.\n\n"
+    "=== FIELD CLASSIFICATION RULES ===\n"
     "- emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
-    "  * neutral: calm speech with no strong emotional polarity.\n"
-    "  * satisfied: pleased, relieved, appreciative tone.\n"
-    "  * frustrated: annoyed, impatient, passive-aggressive, or dissatisfied.\n"
-    "  * upset: angry, agitated, shouting, direct confrontation.\n"
-    "  * distressed: overwhelmed, crying, panicked.\n"
-    "  * RULE: Evaluate pitch inflection and speech cadence, not just volume.\n\n"
+    "  * neutral: calm speech with no strong positive or negative emotion.\n"
+    "  * satisfied: pleased, relieved, appreciative, or clearly positive.\n"
+    "  * frustrated: annoyed, impatient, or dissatisfied without strong anger or distress.\n"
+    "  * upset: clearly angry, agitated, or strongly dissatisfied.\n"
+    "  * distressed: highly emotional, overwhelmed, panicked, crying, or escalated.\n"
+    "  * RULE: Evaluate pitch inflection and speech cadence, not just volume. Do not infer frustration or distress solely from loudness.\n\n"
     "- emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
-    "  * MUST be 'low' whenever emotional_tone is 'neutral'.\n\n"
+    "  * MUST be 'low' whenever emotional_tone is 'neutral'. Low = subtle/mild, Medium = clear & sustained, High = strong/escalated.\n\n"
     "- background_noise_present (Boolean):\n"
-    "  * `true` if ANY audible background sound, static, TV, chatter, hum, music, or environmental noise exists.\n"
-    "  * `false` ONLY if zero non-speech noise exists.\n\n"
+    "  * `true` if meaningful background noise (chatter, TV, music, road noise, mechanical noise, heavy static) is present.\n"
+    "  * `false` if background noise is absent or consists only of barely perceptible artifacts.\n\n"
     "- background_noise_type (String):\n"
-    "  * Specific description (e.g. 'sharp static', 'television', 'office chatter', 'line hiss').\n"
+    "  * Concise description of dominant noise (e.g. 'office chatter', 'television', 'road noise').\n"
     "  * MUST be empty string '' if background_noise_present is false.\n\n"
     "- background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
-    "  * none: zero noise (background_noise_present = false).\n"
-    "  * low: audible background noise that does not interfere with speech.\n"
-    "  * medium: clearly audible noise that occasionally competes with understanding.\n"
-    "  * high: loud static, loud TV, or dominating noise.\n\n"
+    "  * none: no meaningful noise (background_noise_present = false).\n"
+    "  * low: audible but does not interfere with speech.\n"
+    "  * medium: occasionally interferes with understanding.\n"
+    "  * high: materially impairs conversation or analysis.\n\n"
     "- audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
-    "  * Technical quality independent of background noise.\n\n"
-    "- speaker_overlap_present (Boolean): `true` if multiple voices talk simultaneously.\n"
-    "- long_silence_present (Boolean): `true` if continuous dead air / silence exceeds 4 seconds.\n"
-    "- confidence (Number: 0.0 to 1.0): Confidence score based on signal clarity."
+    "  * Overall technical audio quality independent of emotional tone or background noise.\n"
+    "  * clear: good overall technical quality.\n"
+    "  * slightly_impaired: mild distortion, low volume, minor clipping, or echo.\n"
+    "  * severely_impaired: heavy distortion, robotic audio, severe packet loss, or muffled speech.\n\n"
+    "- speaker_overlap_present (Boolean): `true` if two or more speakers talk at the same time enough to affect understanding or analysis.\n"
+    "- long_silence_present (Boolean): `true` if the clip contains an unusually long period of silence or dead air indicating a call-flow problem.\n"
+    "- confidence (Number: 0.0 to 1.0): Model confidence in overall result (1.0 = high, 0.0 = substantial uncertainty)."
 )
 
 
@@ -124,15 +122,10 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         else:
             result = AudioAnalysisResult.model_validate_json(response.text)
 
-        usage_stats = {
-            "audio_duration_seconds": audio_duration_sec,
-            "audio_duration_formatted": audio_duration_formatted,
-            "prompt_tokens": 0,
-            "candidate_tokens": 0,
-            "total_tokens": 0,
-            "cost_usd": 0.0,
-            "is_batch": False
-        }
+        cost_usd = 0.0
+        prompt_tokens = 0
+        candidate_tokens = 0
+        total_tokens = 0
 
         if hasattr(response, "usage_metadata") and response.usage_metadata:
             usage = response.usage_metadata
@@ -143,17 +136,20 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             # Standard Tier: $0.30 / 1M input, $2.50 / 1M output
             input_cost = (prompt_tokens / 1_000_000) * 0.30
             output_cost = (candidate_tokens / 1_000_000) * 2.50
-            total_cost_usd = input_cost + output_cost
+            cost_usd = round(input_cost + output_cost, 6)
 
-            usage_stats = {
-                "audio_duration_seconds": audio_duration_sec,
-                "audio_duration_formatted": audio_duration_formatted,
-                "prompt_tokens": prompt_tokens,
-                "candidate_tokens": candidate_tokens,
-                "total_tokens": total_tokens,
-                "cost_usd": round(total_cost_usd, 6),
-                "is_batch": False
-            }
+        cost_per_min = round((cost_usd / (audio_duration_sec / 60)) if audio_duration_sec > 0 else 0.0, 6)
+
+        usage_stats = {
+            "audio_duration_seconds": audio_duration_sec,
+            "audio_duration_formatted": audio_duration_formatted,
+            "prompt_tokens": prompt_tokens,
+            "candidate_tokens": candidate_tokens,
+            "total_tokens": total_tokens,
+            "cost_usd": cost_usd,
+            "cost_per_audio_minute_usd": cost_per_min,
+            "is_batch": False
+        }
 
         return result, usage_stats
 
@@ -303,39 +299,60 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, AudioAnal
             for item_idx, line in enumerate(result_lines):
                 if not line.strip():
                     continue
-                resp_obj = json.loads(line)
-                fname = audio_paths[item_idx]
+                
+                fname = audio_paths[item_idx] if item_idx < len(audio_paths) else f"audio_{item_idx}.wav"
                 basename = os.path.basename(fname)
                 info = file_info_map.get(basename, {"duration_sec": 0.0, "duration_formatted": "0s"})
 
-                if "response" in resp_obj and resp_obj["response"]:
-                    candidates = resp_obj["response"].get("candidates", [])
-                    raw_text = candidates[0]["content"]["parts"][0]["text"]
-                    parsed_result = AudioAnalysisResult.model_validate_json(raw_text)
+                try:
+                    resp_obj = json.loads(line)
+                    if "response" in resp_obj and resp_obj["response"]:
+                        candidates = resp_obj["response"].get("candidates", [])
+                        raw_text = candidates[0]["content"]["parts"][0]["text"]
+                        parsed_result = AudioAnalysisResult.model_validate_json(raw_text)
 
-                    usage_meta = resp_obj["response"].get("usageMetadata", {})
-                    prompt_tokens = usage_meta.get("promptTokenCount", 0)
-                    candidate_tokens = usage_meta.get("candidatesTokenCount", 0)
-                    total_tokens = usage_meta.get("totalTokenCount", 0)
+                        usage_meta = resp_obj["response"].get("usageMetadata", {})
+                        prompt_tokens = usage_meta.get("promptTokenCount", 0)
+                        candidate_tokens = usage_meta.get("candidatesTokenCount", 0)
+                        total_tokens = usage_meta.get("totalTokenCount", 0)
 
-                    input_cost = (prompt_tokens / 1_000_000) * 0.15
-                    output_cost = (candidate_tokens / 1_000_000) * 1.25
-                    total_cost_usd = input_cost + output_cost
+                        input_cost = (prompt_tokens / 1_000_000) * 0.15
+                        output_cost = (candidate_tokens / 1_000_000) * 1.25
+                        total_cost_usd = round(input_cost + output_cost, 6)
+                        cost_per_min = round((total_cost_usd / (info["duration_sec"] / 60)) if info["duration_sec"] > 0 else 0.0, 6)
 
+                        usage_stats = {
+                            "audio_duration_seconds": info["duration_sec"],
+                            "audio_duration_formatted": info["duration_formatted"],
+                            "prompt_tokens": prompt_tokens,
+                            "candidate_tokens": candidate_tokens,
+                            "total_tokens": total_tokens,
+                            "cost_usd": total_cost_usd,
+                            "cost_per_audio_minute_usd": cost_per_min,
+                            "is_batch": True
+                        }
+
+                        batch_results.append((basename, parsed_result, usage_stats))
+                    else:
+                        err = resp_obj.get("error", "Unknown batch file error")
+                        logger.error(f"File '{basename}' failed in batch execution: {err}")
+                        # Log error state without breaking whole batch execution
+                        usage_stats = {
+                            "audio_duration_seconds": info["duration_sec"],
+                            "audio_duration_formatted": info["duration_formatted"],
+                            "prompt_tokens": 0, "candidate_tokens": 0, "total_tokens": 0,
+                            "cost_usd": 0.0, "cost_per_audio_minute_usd": 0.0, "is_batch": True
+                        }
+                        batch_results.append((basename, None, usage_stats))
+                except Exception as line_ex:
+                    logger.error(f"Failed parsing response line for '{basename}': {line_ex}")
                     usage_stats = {
                         "audio_duration_seconds": info["duration_sec"],
                         "audio_duration_formatted": info["duration_formatted"],
-                        "prompt_tokens": prompt_tokens,
-                        "candidate_tokens": candidate_tokens,
-                        "total_tokens": total_tokens,
-                        "cost_usd": round(total_cost_usd, 6),
-                        "is_batch": True
+                        "prompt_tokens": 0, "candidate_tokens": 0, "total_tokens": 0,
+                        "cost_usd": 0.0, "cost_per_audio_minute_usd": 0.0, "is_batch": True
                     }
-
-                    batch_results.append((basename, parsed_result, usage_stats))
-                else:
-                    err = resp_obj.get("error", "Unknown batch error")
-                    raise RuntimeError(f"File '{basename}' failed in batch execution: {err}")
+                    batch_results.append((basename, None, usage_stats))
         else:
             raise RuntimeError(f"Gemini Batch Job ended with state: {batch_job.state}")
 

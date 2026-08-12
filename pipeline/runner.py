@@ -72,8 +72,8 @@ def process_batch(folder_path: str) -> Dict[str, Any]:
 
             item = {
                 "filename": fname,
-                "status": "success",
-                "prediction": pred.model_dump(),
+                "status": "success" if pred is not None else "failed",
+                "prediction": pred.model_dump() if pred is not None else None,
                 "usage": usage,
                 "ground_truth": ground_truth_map.get(fname)
             }
@@ -109,6 +109,8 @@ def process_batch(folder_path: str) -> Dict[str, Any]:
             results.append(item)
 
     logger.info(f"--- Native Gemini Batch Job Complete: {len(results)} items processed ---")
+    cost_per_audio_min = round((total_batch_cost_usd / (total_audio_duration_seconds / 60)) if total_audio_duration_seconds > 0 else 0.0, 6)
+
     return {
         "total_files": len(results),
         "total_audio_duration_seconds": round(total_audio_duration_seconds, 2),
@@ -117,6 +119,7 @@ def process_batch(folder_path: str) -> Dict[str, Any]:
         "total_candidate_tokens": total_candidate_tokens,
         "total_tokens": total_prompt_tokens + total_candidate_tokens,
         "total_batch_cost_usd": round(total_batch_cost_usd, 6),
+        "cost_per_audio_minute_usd": cost_per_audio_min,
         "is_batch_tier": True,
         "results": results
     }
