@@ -7,6 +7,7 @@ from typing import Dict, Any, Tuple, List, Optional
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from pipeline.schema import AudioAnalysisResult
 from pipeline.logger import get_logger
 from pipeline.audio_utils import get_audio_duration_seconds, format_duration_human, compute_acoustic_noise_metrics
@@ -37,6 +38,24 @@ def get_gemini_client() -> genai.Client:
         _client_cache[api_key] = genai.Client(api_key=api_key if api_key else None)
             
     return _client_cache[api_key]
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry_error_callback=lambda retry_state: logger.warning(f"Retrying Gemini API call (attempt {retry_state.attempt_number})..."),
+    reraise=True
+)
+def _call_gemini_with_retry(client: genai.Client, audio_part: types.Part, prompt_payload: str):
+    return client.models.generate_content(
+        model=MODEL_NAME,
+        contents=[audio_part, prompt_payload],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=AudioAnalysisResult,
+            temperature=0.1,  # Low temperature eliminates random "clean" noise drops
+        ),
+    )
 
 
 # Upgraded Prompt Directive aligned with AutoAce AI Trial Specifications
@@ -77,8 +96,14 @@ PROMPT_TEXT = (
     "  * clear: good overall technical quality.\n"
     "  * slightly_impaired: mild distortion, low volume, minor clipping, or echo.\n"
     "  * severely_impaired: heavy distortion, robotic audio, severe packet loss, or muffled speech.\n\n"
-    "- speaker_overlap_present (Boolean): `true` if two or more speakers talk at the same time enough to affect understanding or analysis.\n"
-    "- long_silence_present (Boolean): `true` if the clip contains an unusually long period of silence or dead air indicating a call-flow problem.\n"
+    "=== SPEAKER OVERLAP DETECTION RULES ===\n"
+    "1. Listen systematically for simultaneous speech, crosstalk, interruptions, or two people talking concurrently.\n"
+    "2. Set `speaker_overlap_present = true` whenever two or more distinct speakers talk at the exact same time, interrupt each other, or speak simultaneously.\n"
+    "3. Set `speaker_overlap_present = false` ONLY if speakers take turns cleanly without talking over one another.\n\n"
+    "=== LONG SILENCE DETECTION RULES ===\n"
+    "1. Inspect for dead air, uncomfortably long gaps (> 2.5 seconds of silence), or extended conversational pauses.\n"
+    "2. Set `long_silence_present = true` if the clip contains unusually long period of silence or dead air indicating a call-flow problem or audio dropout.\n"
+    "3. Set `long_silence_present = false` if speech flow is natural without prolonged dead air.\n\n"
     "- confidence (Number: 0.0 to 1.0): Model confidence in overall result (1.0 = high, 0.0 = substantial uncertainty)."
 )
 
@@ -119,15 +144,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
     prompt_payload = f"{PROMPT_TEXT}\n\n=== ACOUSTIC PRE-ANALYSIS ===\n{acoustic_metrics.get('acoustic_hint', '')}"
 
     try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=[audio_part, prompt_payload],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=AudioAnalysisResult,
-                temperature=0.1,  # Low temperature eliminates random "clean" noise drops
-            ),
-        )
+        response = _call_gemini_with_retry(client, audio_part, prompt_payload)
 
         if response.parsed:
             result = response.parsed
