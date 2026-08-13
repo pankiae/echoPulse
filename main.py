@@ -12,8 +12,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
-# Load .env file before anything else
-load_dotenv()
+# Load .env file before anything else (override=True ensures .env always wins over shell env)
+load_dotenv(override=True)
 
 from pipeline.runner import analyze_audio_file, process_batch
 from pipeline.logger import get_logger
