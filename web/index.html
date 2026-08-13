@@ -1,11 +1,13 @@
 <!-- web/index.html -->
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EchoPulse AI - Multimodal Gemini Voice Analytics</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --bg-main: #f8fafc;
@@ -359,20 +361,66 @@
             display: inline-block;
         }
 
-        .tag-upset { background: #fee2e2; color: #991b1b; }
-        .tag-satisfied { background: #dcfce7; color: #166534; }
-        .tag-neutral { background: #f1f5f9; color: #475569; }
-        .tag-frustrated { background: #fef3c7; color: #92400e; }
-        .tag-distressed { background: #fce7f3; color: #9d174d; }
-        
-        .tag-high { background: #fee2e2; color: #991b1b; }
-        .tag-medium { background: #fef3c7; color: #92400e; }
-        .tag-low { background: #e0f2fe; color: #075985; }
-        .tag-none { background: #f1f5f9; color: #64748b; }
-        .tag-clear { background: #dcfce7; color: #166534; }
-        
-        .tag-boolean-true { background: #fee2e2; color: #991b1b; font-weight: 800; }
-        .tag-boolean-false { background: #f1f5f9; color: #64748b; }
+        .tag-upset {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .tag-satisfied {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .tag-neutral {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .tag-frustrated {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .tag-distressed {
+            background: #fce7f3;
+            color: #9d174d;
+        }
+
+        .tag-high {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .tag-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .tag-low {
+            background: #e0f2fe;
+            color: #075985;
+        }
+
+        .tag-none {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .tag-clear {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .tag-boolean-true {
+            background: #fee2e2;
+            color: #991b1b;
+            font-weight: 800;
+        }
+
+        .tag-boolean-false {
+            background: #f1f5f9;
+            color: #64748b;
+        }
 
         .btn-action {
             background: #ffffff;
@@ -466,6 +514,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <!-- Header -->
@@ -509,14 +558,15 @@
         <div class="api-banner">
             <div>
                 <strong style="color: var(--accent-primary)">Gemini API Configuration:</strong>
-                <span style="color: var(--text-muted); margin-left: 0.5rem;">Enter your Google Gemini API key or set <code>GEMINI_API_KEY</code> environment variable.</span>
+                <span style="color: var(--text-muted); margin-left: 0.5rem;">Enter your Google Gemini API key or set
+                    <code>GEMINI_API_KEY</code> environment variable.</span>
             </div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 <input type="password" id="apiKeyInput" placeholder="AIzaSy... (Gemini API Key)">
                 <button class="btn-action" onclick="saveApiKey()">Save Key</button>
             </div>
         </div>
-        
+
         <!-- Summary Stats Grid -->
         <div class="metrics-grid">
             <div class="metric-card">
@@ -525,35 +575,50 @@
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Audio Duration</div>
-                <div class="metric-value" id="statAudioDuration" style="color: var(--accent-sky); font-size: 1.5rem;">0s</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statAudioSeconds">0.0 seconds total call audio</div>
+                <div class="metric-value" id="statAudioDuration" style="color: var(--accent-sky); font-size: 1.5rem;">0s
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statAudioSeconds">0.0
+                    seconds total call audio</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Token Consumption</div>
-                <div class="metric-value" id="statTokens" style="color: var(--accent-primary); font-size: 1.5rem;">0 tokens</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statTokensDetail">Prompt: 0 | Output: 0</div>
+                <div class="metric-value" id="statTokens" style="color: var(--accent-primary); font-size: 1.5rem;">0
+                    tokens</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statTokensDetail">
+                    Prompt: 0 | Output: 0</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total API Cost (USD)</div>
-                <div class="metric-value" id="statCost" style="color: var(--accent-green); font-size: 1.5rem;">$0.000000</div>
-                <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;" id="statCostCents">~0.0000¢ USD</div>
-                <div style="font-size: 0.75rem; color: var(--accent-primary); font-weight: 700; margin-top: 0.25rem;" id="statCostPerMin">Cost/Min: $0.000000 (Ceiling: $0.003)</div>
+                <div class="metric-value" id="statCost" style="color: var(--accent-green); font-size: 1.5rem;">$0.000000
+                </div>
+                <div style="font-size: 0.75rem; color: var(--accent-green); font-weight: 600; margin-top: 0.2rem;"
+                    id="statCostCents">~0.0000¢ USD</div>
+                <div style="font-size: 0.75rem; color: var(--accent-primary); font-weight: 700; margin-top: 0.25rem;"
+                    id="statCostPerMin">Cost/Min: $0.000000 (Ceiling: $0.003)</div>
             </div>
         </div>
 
         <!-- Dashboard Grid -->
         <div class="dashboard-grid">
-            
+
             <!-- Upload Column -->
             <div class="upload-panel">
                 <h3 style="margin-bottom: 1.2rem; font-size: 1.05rem; font-weight: 800;">Audio Batch Upload</h3>
                 <div class="drop-zone" onclick="document.getElementById('batchInput').click()">
-                    <svg width="42" height="42" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-bottom: 0.6rem; color: var(--accent-primary)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                    <p style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">Click or Drag Audio Files</p>
-                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Supports ZIP with labels.csv or OGG/MP3/WAV</p>
+                    <svg width="42" height="42" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        style="margin-bottom: 0.6rem; color: var(--accent-primary)">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                        </path>
+                    </svg>
+                    <p style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">Click or Drag Audio Files
+                    </p>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Supports ZIP with
+                        labels.csv or OGG/MP3/WAV</p>
                     <input type="file" id="batchInput" style="display:none" onchange="uploadBatchFile(this.files[0])">
                 </div>
-                <div id="uploadProgress" style="display:none; margin-top: 1.2rem; font-size: 0.85rem; font-weight: 600; color: var(--accent-primary); text-align: center;">
+                <div id="uploadProgress"
+                    style="display:none; margin-top: 1.2rem; font-size: 0.85rem; font-weight: 600; color: var(--accent-primary); text-align: center;">
                     Running Gemini 3.5 Lite audio reasoning...
                 </div>
             </div>
@@ -564,11 +629,16 @@
                     <div class="panel-title">Structured Voice Analysis (Gemini Multimodal Output)</div>
                     <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
                         <button class="btn-action btn-copy" onclick="copyAsMarkdown()">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3">
+                                </path>
+                            </svg>
                             Copy Markdown Table
                         </button>
                         <button class="btn-action" onclick="window.location.href='/api/export/csv'">Export CSV</button>
-                        <button class="btn-action" onclick="window.location.href='/api/export/json'">Export JSON</button>
+                        <button class="btn-action" onclick="window.location.href='/api/export/json'">Export
+                            JSON</button>
                     </div>
                 </div>
 
@@ -652,10 +722,10 @@
         function renderTable(data) {
             const totalFiles = data.total_files || 0;
             document.getElementById('statTotal').innerText = totalFiles;
-            
+
             const totalAudioSec = data.total_audio_duration_seconds || 0.0;
             const formattedTotalAudio = data.total_audio_duration_formatted || (totalAudioSec.toFixed(1) + 's');
-            
+
             const totalTokens = data.total_tokens || 0;
             const promptTokens = data.total_prompt_tokens || 0;
             const candidateTokens = data.total_candidate_tokens || 0;
@@ -667,10 +737,10 @@
 
             document.getElementById('statTokens').innerText = totalTokens.toLocaleString() + ' tokens';
             document.getElementById('statTokensDetail').innerText = `Prompt: ${promptTokens.toLocaleString()} | Output: ${candidateTokens.toLocaleString()}`;
-            
+
             document.getElementById('statCost').innerText = '$' + totalCost.toFixed(6);
             document.getElementById('statCostCents').innerHTML = `~${(totalCost * 100).toFixed(4)}¢ USD ${isBatchTier ? '<span class="batch-discount-badge">50% OFF BATCH TIER</span>' : ''}`;
-            
+
             const costPerMin = data.cost_per_audio_minute_usd || (totalAudioSec > 0 ? (totalCost / (totalAudioSec / 60)) : 0.0);
             document.getElementById('statCostPerMin').innerText = `Cost/Min: $${costPerMin.toFixed(6)} (Ceiling: $0.003)`;
 
@@ -789,4 +859,5 @@
         }
     </script>
 </body>
+
 </html>
