@@ -127,7 +127,7 @@ def compute_acoustic_noise_metrics(file_path: str) -> dict:
                             "peak_rms": round(peak_rms, 4),
                             "estimated_snr_db": round(snr, 1),
                             "elevated_noise_floor": elevated,
-                            "acoustic_hint": f"Measured Noise Floor RMS: {noise_floor_rms:.4f} (Elevated noise layer detected: {elevated})"
+                            "acoustic_hint": f"Acoustic Signal Pre-Analysis: Background energy level = {'Elevated' if elevated else 'Subtle'} (Noise Floor RMS: {noise_floor_rms:.4f}, SNR: {snr:.1f} dB). Audit carefully for specific background noise source (chatter, TV, traffic, typing, HVAC, or static)."
                         }
 
         # Fallback byte energy analysis for compressed audio formats (.mp3, .ogg, .m4a)
@@ -140,10 +140,10 @@ def compute_acoustic_noise_metrics(file_path: str) -> dict:
                 return {
                     "byte_std_dev": round(std_dev, 2),
                     "elevated_noise_floor": elevated,
-                    "acoustic_hint": f"Raw Byte Dispersion: {std_dev:.1f} (Background texture detected: {elevated})"
+                    "acoustic_hint": f"Acoustic Signal Pre-Analysis: Raw Byte Dispersion = {std_dev:.1f} (Background layer detected: {elevated}). Audit carefully for chatter, TV, traffic, typing, or static."
                 }
     except Exception as e:
         logger.warning(f"Acoustic noise pre-analysis fallback for '{file_path}': {e}")
 
-    return {"elevated_noise_floor": False, "acoustic_hint": "Standard acoustic baseline"}
+    return {"elevated_noise_floor": False, "acoustic_hint": "Acoustic Signal Pre-Analysis: Standard acoustic baseline."}
 
