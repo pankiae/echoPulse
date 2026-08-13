@@ -512,6 +512,56 @@
             border-radius: 5px;
             margin-left: 0.35rem;
         }
+
+        /* Interactive Loading Animation Styles */
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #bae6fd;
+            border-top: 3px solid #0284c7;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .waveform-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 26px;
+            margin: 0.5rem 0;
+        }
+
+        .wave-bar {
+            width: 4px;
+            height: 100%;
+            background: #0284c7;
+            border-radius: 4px;
+            animation: wave 1.2s ease-in-out infinite alternate;
+        }
+
+        .wave-bar:nth-child(1) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.5s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+        @keyframes wave {
+            0% { height: 6px; opacity: 0.4; }
+            100% { height: 24px; opacity: 1; }
+        }
+
+        .drop-zone.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            pointer-events: none;
+            background: #f1f5f9;
+        }
     </style>
 </head>
 
@@ -604,22 +654,41 @@
             <!-- Upload Column -->
             <div class="upload-panel">
                 <h3 style="margin-bottom: 1.2rem; font-size: 1.05rem; font-weight: 800;">Audio Batch Upload</h3>
-                <div class="drop-zone" onclick="document.getElementById('batchInput').click()">
-                    <svg width="42" height="42" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                <div class="drop-zone" id="dropZone" onclick="if(!isUploading) document.getElementById('batchInput').click()">
+                    <svg id="uploadIcon" width="42" height="42" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                         style="margin-bottom: 0.6rem; color: var(--accent-primary)">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
                         </path>
                     </svg>
-                    <p style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">Click or Drag Audio Files
+                    <p id="uploadTextMain" style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">Click or Drag Audio Files
                     </p>
-                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Supports ZIP with
+                    <p id="uploadTextSub" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Supports ZIP with
                         labels.csv or OGG/MP3/WAV</p>
                     <input type="file" id="batchInput" style="display:none" onchange="uploadBatchFile(this.files[0])">
                 </div>
-                <div id="uploadProgress"
-                    style="display:none; margin-top: 1.2rem; font-size: 0.85rem; font-weight: 600; color: var(--accent-primary); text-align: center;">
-                    Running Gemini 3.5 Lite audio reasoning...
+
+                <!-- Interactive Processing Card -->
+                <div id="uploadProgress" style="display:none; margin-top: 1.25rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1.2rem; text-align: center;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.85rem;">
+                        <div class="spinner"></div>
+                        <div style="font-weight: 800; font-size: 0.95rem; color: #0369a1;" id="processingTitle">Processing Audio...</div>
+                    </div>
+                    <!-- Animated Waveform Visualizer -->
+                    <div class="waveform-container">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <div id="processingStep" style="font-size: 0.82rem; font-weight: 600; color: var(--accent-primary); margin-top: 0.65rem;">
+                        [1/3] Uploading audio payload...
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; display: flex; justify-content: space-between; align-items: center; padding: 0 0.5rem;">
+                        <span>Target: Gemini 3.5 Lite Parallel</span>
+                        <span id="elapsedTimer" style="font-weight: 700; font-family: monospace; color: #0284c7;">Elapsed: 0s</span>
+                    </div>
                 </div>
             </div>
 
@@ -821,9 +890,40 @@
             });
         }
 
+        let isUploading = false;
+        let uploadTimerInterval = null;
+
         async function uploadBatchFile(file) {
-            if (!file) return;
-            document.getElementById('uploadProgress').style.display = 'block';
+            if (!file || isUploading) return;
+
+            isUploading = true;
+            const dropZone = document.getElementById('dropZone');
+            const progressCard = document.getElementById('uploadProgress');
+            const stepText = document.getElementById('processingStep');
+            const timerText = document.getElementById('elapsedTimer');
+            const titleText = document.getElementById('processingTitle');
+            const uploadTextMain = document.getElementById('uploadTextMain');
+
+            dropZone.classList.add('disabled');
+            uploadTextMain.innerText = `Uploading '${file.name}'...`;
+            progressCard.style.display = 'block';
+
+            let secondsElapsed = 0;
+            timerText.innerText = 'Elapsed: 0s';
+            stepText.innerText = '[1/3] Uploading audio payload to server...';
+            titleText.innerText = `Analyzing '${file.name}'...`;
+
+            uploadTimerInterval = setInterval(() => {
+                secondsElapsed++;
+                timerText.innerText = `Elapsed: ${secondsElapsed}s`;
+
+                if (secondsElapsed === 2) {
+                    stepText.innerText = '[2/3] Extracting payload & calculating acoustic signals...';
+                } else if (secondsElapsed === 4) {
+                    stepText.innerText = '[3/3] Multimodal Gemini 3.5 Lite parallel audio reasoning...';
+                }
+            }, 1000);
+
             const formData = new FormData();
             formData.append('file', file);
 
@@ -838,9 +938,14 @@
                     alert('Error: ' + (errJson.detail || 'Failed to process audio file with Gemini'));
                 }
             } catch (err) {
-                alert('Upload error');
+                alert('Upload error: ' + err.message);
             } finally {
-                document.getElementById('uploadProgress').style.display = 'none';
+                if (uploadTimerInterval) clearInterval(uploadTimerInterval);
+                isUploading = false;
+                dropZone.classList.remove('disabled');
+                uploadTextMain.innerText = 'Click or Drag Audio Files';
+                progressCard.style.display = 'none';
+                document.getElementById('batchInput').value = '';
             }
         }
 
