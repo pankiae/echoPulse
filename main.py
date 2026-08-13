@@ -6,10 +6,14 @@ import zipfile
 import tempfile
 import asyncio
 import sys
-from typing import Optional
+from typing import Optional, Dict
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
+
+# Load .env file before anything else
+load_dotenv()
 
 from pipeline.runner import analyze_audio_file, process_batch
 from pipeline.logger import get_logger
@@ -37,6 +41,31 @@ logger = get_logger("EchoPulseAPI")
 CURRENT_BATCH_RESULTS = None
 
 
+def _load_users() -> Dict[str, str]:
+    """
+    Parses ECHOPULSE_USERS from the environment into a {username: password} dict.
+    Format: "user1:pass1,user2:pass2"
+    Falls back to an empty dict (all logins rejected) if the var is missing.
+    """
+    raw = os.getenv("ECHOPULSE_USERS", "").strip()
+    if not raw:
+        logger.warning(
+            "ECHOPULSE_USERS env var is not set — all login attempts will be rejected. "
+            "Add ECHOPULSE_USERS=user:pass,user2:pass2 to your .env file."
+        )
+        return {}
+    users: Dict[str, str] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if ":" in entry:
+            username, _, password = entry.partition(":")
+            users[username.strip()] = password.strip()
+        else:
+            logger.warning(f"Skipping malformed ECHOPULSE_USERS entry (missing ':'): '{entry}'")
+    logger.info(f"Loaded {len(users)} user(s) from ECHOPULSE_USERS: {list(users.keys())}")
+    return users
+
+
 @app.get("/", response_class=HTMLResponse)
 def index_page():
     logger.info("Serving EchoPulse Light Theme Dashboard HTML index page")
@@ -55,15 +84,13 @@ def health_check():
 @app.post("/api/login")
 def login(username: str = Form(...), password: str = Form(...)):
     logger.info(f"Login attempt for user: '{username}'")
-    if username == "admin" and password == "autoace2026":
-        logger.info("Successful login for admin")
-        return {"status": "success", "token": "echopulse-auth-token-9982"}
-    elif username == "evaluator" and password == "eval2026":
-        logger.info("Successful login for evaluator")
-        return {"status": "success", "token": "echopulse-eval-token-1122"}
-    else:
-        logger.warning(f"Failed login attempt for user: '{username}'")
-        raise HTTPException(status_code=401, detail="Invalid credentials. Use admin/autoace2026 or evaluator/eval2026")
+    users = _load_users()
+    expected_password = users.get(username)
+    if expected_password is not None and expected_password == password:
+        logger.info(f"Successful login for user: '{username}'")
+        return {"status": "success", "token": f"echopulse-token-{username}"}
+    logger.warning(f"Failed login attempt for user: '{username}'")
+    raise HTTPException(status_code=401, detail="Invalid credentials. Check your .env ECHOPULSE_USERS configuration.")
 
 
 @app.post("/api/config_key")
