@@ -1,7 +1,7 @@
 # pipeline/schema.py
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class EmotionalTone(str, Enum):
@@ -106,6 +106,24 @@ class AudioAnalysisResult(BaseModel):
             "The model's confidence in the overall result from 0.0 (substantial uncertainty) to 1.0 (high confidence)."
         ),
     )
+
+    @model_validator(mode="after")
+    def validate_trial_rules(self) -> "AudioAnalysisResult":
+        # Rule 1: If background noise is absent, enforce empty type and severity=none
+        if not self.background_noise_present:
+            self.background_noise_type = ""
+            self.background_noise_severity = BackgroundNoiseSeverity.NONE
+        elif self.background_noise_severity == BackgroundNoiseSeverity.NONE:
+            # If severity was marked as none, set noise_present to False
+            self.background_noise_present = False
+            self.background_noise_type = ""
+
+        # Rule 2: Neutral tone MUST have low emotional intensity
+        if self.emotional_tone == EmotionalTone.NEUTRAL:
+            self.emotional_intensity = EmotionalIntensity.LOW
+
+        return self
+
 
 
 class BatchFileResult(BaseModel):

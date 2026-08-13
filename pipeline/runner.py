@@ -1,5 +1,6 @@
 # pipeline/runner.py
 import os
+import time
 import json
 import pandas as pd
 from typing import Dict, Any, Tuple
@@ -9,6 +10,8 @@ from pipeline.audio_utils import format_duration_human
 from pipeline.logger import get_logger
 
 logger = get_logger("PipelineRunner")
+
+COST_CEILING_PER_MIN_USD = 0.003  # Target trial constraint
 
 
 def analyze_audio_file(audio_path: str) -> Tuple[AudioAnalysisResult, Dict[str, Any]]:
@@ -26,24 +29,35 @@ def analyze_audio_file(audio_path: str) -> Tuple[AudioAnalysisResult, Dict[str, 
 
 def process_batch(folder_path: str) -> Dict[str, Any]:
     """
-    Processes an entire folder containing audio clips using the native Gemini Async Batch Job API (client.batches.create).
+    Processes an entire folder containing audio clips using the native Gemini Async Batch Job API.
     Submits batch request with 50% discount Batch Tier pricing ($0.15/1M input, $1.25/1M output).
+    Includes manifest validation (labels.csv), latency tracking, and cost ceiling verification.
     """
-    logger.info(f"--- Starting Native Gemini Batch Job (50% Off Batch Tier) for Directory: '{folder_path}' ---")
+    batch_start_time = time.time()
+    logger.info(f"--- Starting Native Gemini Batch Processing for Directory: '{folder_path}' ---")
     
     labels_csv_path = os.path.join(folder_path, "labels.csv")
+    manifest_present = False
     ground_truth_map = {}
+    manifest_filenames = set()
     
     if os.path.exists(labels_csv_path):
+        manifest_present = True
         logger.info(f"Manifest found: Reading ground truth labels from '{labels_csv_path}'")
         try:
             df = pd.read_csv(labels_csv_path)
             for _, row in df.iterrows():
-                fname = row['name']
-                raw_json = row['result_json']
+                fname = str(row['name']).strip()
+                manifest_filenames.add(fname)
+                raw_json = row.get('result_json')
                 if pd.notna(raw_json) and str(raw_json).strip():
-                    ground_truth_map[fname] = json.loads(raw_json)
-            logger.info(f"Parsed {len(ground_truth_map)} ground truth records from CSV")
+                    try:
+                        ground_truth_map[fname] = json.loads(str(raw_json))
+                    except Exception:
+                        ground_truth_map[fname] = None
+                else:
+                    ground_truth_map[fname] = None
+            logger.info(f"Parsed {len(manifest_filenames)} manifest rows ({len(ground_truth_map)} labeled) from CSV")
         except Exception as e:
             logger.error(f"Error parsing labels.csv: {e}")
 
@@ -60,6 +74,15 @@ def process_batch(folder_path: str) -> Dict[str, Any]:
     total_candidate_tokens = 0
     total_batch_cost_usd = 0.0
     results = []
+
+    matched_manifest_count = 0
+    unmatched_audio_files = []
+    
+    for f in audio_files:
+        if f in manifest_filenames:
+            matched_manifest_count += 1
+        else:
+            unmatched_audio_files.append(f)
 
     try:
         # Submit native batch job
@@ -108,11 +131,17 @@ def process_batch(folder_path: str) -> Dict[str, Any]:
                 }
             results.append(item)
 
-    logger.info(f"--- Native Gemini Batch Job Complete: {len(results)} items processed ---")
+    total_batch_latency_sec = round(time.time() - batch_start_time, 2)
+    logger.info(f"--- Native Gemini Batch Job Complete: {len(results)} items processed in {total_batch_latency_sec}s ---")
+    
     cost_per_audio_min = round((total_batch_cost_usd / (total_audio_duration_seconds / 60)) if total_audio_duration_seconds > 0 else 0.0, 6)
+    is_compliant = cost_per_audio_min <= COST_CEILING_PER_MIN_USD
 
     return {
         "total_files": len(results),
+        "manifest_present": manifest_present,
+        "matched_manifest_count": matched_manifest_count,
+        "unmatched_audio_files": unmatched_audio_files,
         "total_audio_duration_seconds": round(total_audio_duration_seconds, 2),
         "total_audio_duration_formatted": format_duration_human(total_audio_duration_seconds),
         "total_prompt_tokens": total_prompt_tokens,
@@ -120,6 +149,10 @@ def process_batch(folder_path: str) -> Dict[str, Any]:
         "total_tokens": total_prompt_tokens + total_candidate_tokens,
         "total_batch_cost_usd": round(total_batch_cost_usd, 6),
         "cost_per_audio_minute_usd": cost_per_audio_min,
+        "cost_ceiling_per_min_usd": COST_CEILING_PER_MIN_USD,
+        "cost_ceiling_compliant": is_compliant,
+        "total_batch_latency_seconds": total_batch_latency_sec,
         "is_batch_tier": True,
         "results": results
     }
+

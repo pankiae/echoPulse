@@ -572,6 +572,7 @@
             <div class="metric-card">
                 <div class="metric-label">Processed Clips</div>
                 <div class="metric-value" id="statTotal">0</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statManifest">Manifest: Checking...</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Audio Duration</div>
@@ -581,11 +582,10 @@
                     seconds total call audio</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Total Token Consumption</div>
-                <div class="metric-value" id="statTokens" style="color: var(--accent-primary); font-size: 1.5rem;">0
-                    tokens</div>
+                <div class="metric-label">Total Token & Latency</div>
+                <div class="metric-value" id="statTokens" style="color: var(--accent-primary); font-size: 1.5rem;">0 tokens</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;" id="statTokensDetail">
-                    Prompt: 0 | Output: 0</div>
+                    Prompt: 0 | Output: 0 | Latency: 0s</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total API Cost (USD)</div>
@@ -723,6 +723,12 @@
             const totalFiles = data.total_files || 0;
             document.getElementById('statTotal').innerText = totalFiles;
 
+            if (data.manifest_present) {
+                document.getElementById('statManifest').innerHTML = `<span style="color: var(--accent-green); font-weight: 700;">✓ labels.csv loaded</span> (${data.matched_manifest_count || 0} matched)`;
+            } else {
+                document.getElementById('statManifest').innerText = 'No labels.csv manifest';
+            }
+
             const totalAudioSec = data.total_audio_duration_seconds || 0.0;
             const formattedTotalAudio = data.total_audio_duration_formatted || (totalAudioSec.toFixed(1) + 's');
 
@@ -731,18 +737,24 @@
             const candidateTokens = data.total_candidate_tokens || 0;
             const totalCost = data.total_batch_cost_usd || 0.0;
             const isBatchTier = data.is_batch_tier || false;
+            const batchLatency = data.total_batch_latency_seconds || 0.0;
 
             document.getElementById('statAudioDuration').innerText = formattedTotalAudio;
             document.getElementById('statAudioSeconds').innerText = `${totalAudioSec.toFixed(1)} seconds of call recordings`;
 
             document.getElementById('statTokens').innerText = totalTokens.toLocaleString() + ' tokens';
-            document.getElementById('statTokensDetail').innerText = `Prompt: ${promptTokens.toLocaleString()} | Output: ${candidateTokens.toLocaleString()}`;
+            document.getElementById('statTokensDetail').innerText = `Prompt: ${promptTokens.toLocaleString()} | Output: ${candidateTokens.toLocaleString()} | Runtime: ${batchLatency}s`;
 
             document.getElementById('statCost').innerText = '$' + totalCost.toFixed(6);
             document.getElementById('statCostCents').innerHTML = `~${(totalCost * 100).toFixed(4)}¢ USD ${isBatchTier ? '<span class="batch-discount-badge">50% OFF BATCH TIER</span>' : ''}`;
 
             const costPerMin = data.cost_per_audio_minute_usd || (totalAudioSec > 0 ? (totalCost / (totalAudioSec / 60)) : 0.0);
-            document.getElementById('statCostPerMin').innerText = `Cost/Min: $${costPerMin.toFixed(6)} (Ceiling: $0.003)`;
+            const isCompliant = data.cost_ceiling_compliant !== undefined ? data.cost_ceiling_compliant : (costPerMin <= 0.003);
+            const complianceBadge = isCompliant 
+                ? `<span style="color: var(--accent-green); font-weight: 700;">✓ PASS (&lt; $0.003)</span>` 
+                : `<span style="color: var(--accent-red); font-weight: 700;">⚠️ EXCEEDED</span>`;
+
+            document.getElementById('statCostPerMin').innerHTML = `Cost/Min: $${costPerMin.toFixed(6)} | ${complianceBadge}`;
 
             const tbody = document.getElementById('resultsTable');
             tbody.innerHTML = '';

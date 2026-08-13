@@ -4,11 +4,15 @@ import time
 import json
 import mimetypes
 from typing import Dict, Any, Tuple, List, Optional
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pipeline.schema import AudioAnalysisResult
 from pipeline.logger import get_logger
-from pipeline.audio_utils import get_audio_duration_seconds, format_duration_human
+from pipeline.audio_utils import get_audio_duration_seconds, format_duration_human, compute_acoustic_noise_metrics
+
+# Load environment variables from .env file
+load_dotenv(override=True)
 
 logger = get_logger("GeminiAnalyzer")
 
@@ -23,6 +27,7 @@ def get_gemini_client() -> genai.Client:
     Reuses cached genai.Client instance per API key while warning if key is missing.
     """
     global _client_cache
+    load_dotenv(override=True)
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     
     if not api_key:
@@ -38,14 +43,16 @@ def get_gemini_client() -> genai.Client:
 PROMPT_TEXT = (
     "You are an elite acoustic forensics AI specialized in call recording signal analysis.\n"
     "Perform a high-precision audit on this audio clip to achieve top accuracy across all schema fields.\n\n"
-    "=== NOISE DETECTION RULES ===\n"
-    "1. Isolate the pauses, zero-speech gaps between words, and background layers underneath human voice.\n"
-    "2. Inspect for meaningful background sound: office chatter, television, road noise, keyboard clicks, music, mechanical noise, or heavy line hiss/static.\n"
-    "3. Set `background_noise_present = true` ONLY if meaningful non-speech sound is audible in the background.\n"
-    "4. CRITICAL: Barely perceptible background noise artifacts, micro static, or subtle room atmosphere should NOT automatically count as background noise. In such cases, set `background_noise_present = false` and `background_noise_severity = 'none'`.\n\n"
+    "=== BACKGROUND NOISE DETECTION RULES ===\n"
+    "1. Systematically listen to the pauses between words, zero-speech gaps, and continuous audio layers beneath the human voice.\n"
+    "2. Look for ANY audible non-speech sound: background chatter/voices, radio static, line hiss, television, vehicle/engine/road noise, keyboard typing, hums, fan noise, music, or mechanical sounds.\n"
+    "3. Set `background_noise_present = true` whenever distinct background sound, transmission static, or room chatter is audible in the clip.\n"
+    "4. Set `background_noise_present = false` ONLY if the background is completely clean and quiet without audible background sounds or persistent static.\n"
+    "5. When `background_noise_present = true`, provide a concise `background_noise_type` (e.g. 'radio static', 'office chatter', 'line hiss', 'engine noise', 'road noise', 'music', 'fan noise').\n"
+    "6. When `background_noise_present = false`, MUST set `background_noise_type = ''` and `background_noise_severity = 'none'`.\n\n"
     "=== FIELD CLASSIFICATION RULES ===\n"
     "- emotional_tone (Enum: 'neutral' | 'satisfied' | 'frustrated' | 'upset' | 'distressed'):\n"
-    "  * neutral: calm speech with no strong positive or negative emotion.\n"
+    "  * neutral: calm speech with no clear positive or negative emotion.\n"
     "  * satisfied: pleased, relieved, appreciative, or clearly positive.\n"
     "  * frustrated: annoyed, impatient, or dissatisfied without strong anger or distress.\n"
     "  * upset: clearly angry, agitated, or strongly dissatisfied.\n"
@@ -53,19 +60,13 @@ PROMPT_TEXT = (
     "  * RULE: Evaluate pitch inflection and speech cadence, not just volume. Do not infer frustration or distress solely from loudness.\n\n"
     "- emotional_intensity (Enum: 'low' | 'medium' | 'high'):\n"
     "  * MUST be 'low' whenever emotional_tone is 'neutral'. Low = subtle/mild, Medium = clear & sustained, High = strong/escalated.\n\n"
-    "- background_noise_present (Boolean):\n"
-    "  * `true` if meaningful background noise (chatter, TV, music, road noise, mechanical noise, heavy static) is present.\n"
-    "  * `false` if background noise is absent or consists only of barely perceptible artifacts.\n\n"
-    "- background_noise_type (String):\n"
-    "  * Concise description of dominant noise (e.g. 'office chatter', 'television', 'road noise').\n"
-    "  * MUST be empty string '' if background_noise_present is false.\n\n"
     "- background_noise_severity (Enum: 'none' | 'low' | 'medium' | 'high'):\n"
-    "  * none: no meaningful noise (background_noise_present = false).\n"
-    "  * low: audible but does not interfere with speech.\n"
-    "  * medium: occasionally interferes with understanding.\n"
-    "  * high: materially impairs conversation or analysis.\n\n"
+    "  * none: no background noise (background_noise_present = false).\n"
+    "  * low: audible background noise/static that does not interfere with understanding.\n"
+    "  * medium: background noise/static that occasionally interferes with understanding.\n"
+    "  * high: severe noise/static that materially impairs conversation or analysis.\n\n"
     "- audio_quality (Enum: 'clear' | 'slightly_impaired' | 'severely_impaired'):\n"
-    "  * Overall technical audio quality independent of emotional tone or background noise.\n"
+    "  * Overall technical audio quality independent of emotional tone.\n"
     "  * clear: good overall technical quality.\n"
     "  * slightly_impaired: mild distortion, low volume, minor clipping, or echo.\n"
     "  * severely_impaired: heavy distortion, robotic audio, severe packet loss, or muffled speech.\n\n"
@@ -80,11 +81,13 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
     Analyzes a single audio clip synchronously via Google Gemini Flash Multimodal LLM.
     Returns (result_schema, usage_stats_dict).
     """
+    start_time = time.time()
     filename = os.path.basename(audio_path)
     logger.info(f"[{filename}] Initializing Gemini 3.5 Lite Single Audio Analysis...")
 
     audio_duration_sec = get_audio_duration_seconds(audio_path)
     audio_duration_formatted = format_duration_human(audio_duration_sec)
+    acoustic_metrics = compute_acoustic_noise_metrics(audio_path)
 
     client = get_gemini_client()
 
@@ -105,11 +108,13 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         audio_bytes = f.read()
 
     audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime_type)
+    
+    prompt_payload = f"{PROMPT_TEXT}\n\n=== ACOUSTIC PRE-ANALYSIS ===\n{acoustic_metrics.get('acoustic_hint', '')}"
 
     try:
         response = client.models.generate_content(
             model=MODEL_NAME,
-            contents=[audio_part, PROMPT_TEXT],
+            contents=[audio_part, prompt_payload],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=AudioAnalysisResult,
@@ -122,6 +127,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         else:
             result = AudioAnalysisResult.model_validate_json(response.text)
 
+        latency_sec = round(time.time() - start_time, 2)
         cost_usd = 0.0
         prompt_tokens = 0
         candidate_tokens = 0
@@ -148,6 +154,7 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
             "total_tokens": total_tokens,
             "cost_usd": cost_usd,
             "cost_per_audio_minute_usd": cost_per_min,
+            "latency_seconds": latency_sec,
             "is_batch": False
         }
 
@@ -157,16 +164,19 @@ def analyze_audio_with_gemini(audio_path: str) -> Tuple[AudioAnalysisResult, Dic
         logger.error(f"[{filename}] Gemini Single API call failed: {e}")
         raise e
 
+
 def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[AudioAnalysisResult], Dict[str, Any]]]:
     """
     Submits a native Gemini Async Batch Job for Audio Files via JSONL Input File upload.
     Waits for files to transition to ACTIVE state to prevent 400 FAILED_PRECONDITION errors.
     """
+    batch_start_time = time.time()
     client = get_gemini_client()
     logger.info(f"=== Starting Native Gemini Batch Job for {len(audio_paths)} audio file(s)... ===")
 
     uploaded_files = []
     file_info_map = {}
+    req_id_to_file_map = {}
     jsonl_lines = []
 
     try:
@@ -206,7 +216,9 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
             if str(remote_file.state).endswith("FAILED"):
                 raise RuntimeError(f"File upload processing failed for {fname}")
 
-            remote_audio_files.append((remote_file, mime_type, fname))
+            req_id = f"req-{idx+1:03d}"
+            remote_audio_files.append((remote_file, mime_type, fname, req_id, path))
+            req_id_to_file_map[req_id] = fname
 
             file_info_map[fname] = {
                 "duration_sec": duration_sec,
@@ -214,11 +226,12 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
             }
 
         # 2. Construct JSONL Lines
-        for idx, (remote_file, mime_type, fname) in enumerate(remote_audio_files):
-            key_id = f"req-{idx+1:03d}"
-            
+        for remote_file, mime_type, fname, req_id, local_path in remote_audio_files:
+            ac_metrics = compute_acoustic_noise_metrics(local_path)
+            prompt_payload = f"{PROMPT_TEXT}\n\n=== ACOUSTIC PRE-ANALYSIS ===\n{ac_metrics.get('acoustic_hint', '')}"
+
             line_obj = {
-                "custom_id": key_id,
+                "custom_id": req_id,
                 "request": {
                     "contents": [
                         {
@@ -231,7 +244,7 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
                                     }
                                 },
                                 {
-                                    "text": PROMPT_TEXT
+                                    "text": prompt_payload
                                 }
                             ]
                         }
@@ -283,7 +296,8 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
             time.sleep(poll_interval)
             batch_job = client.batches.get(name=batch_job.name)
 
-        logger.info(f"Batch job finished with final state: {batch_job.state}")
+        batch_total_time = round(time.time() - batch_start_time, 2)
+        logger.info(f"Batch job finished with final state: {batch_job.state} in {batch_total_time}s")
 
         # 6. Process results
         batch_results = []
@@ -299,13 +313,14 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
             for item_idx, line in enumerate(result_lines):
                 if not line.strip():
                     continue
-                
-                fname = audio_paths[item_idx] if item_idx < len(audio_paths) else f"audio_{item_idx}.wav"
-                basename = os.path.basename(fname)
-                info = file_info_map.get(basename, {"duration_sec": 0.0, "duration_formatted": "0s"})
 
                 try:
                     resp_obj = json.loads(line)
+                    custom_id = resp_obj.get("custom_id", f"req-{item_idx+1:03d}")
+                    fname = req_id_to_file_map.get(custom_id, audio_paths[item_idx] if item_idx < len(audio_paths) else f"audio_{item_idx}.wav")
+                    basename = os.path.basename(fname)
+                    info = file_info_map.get(basename, {"duration_sec": 0.0, "duration_formatted": "0s"})
+
                     if "response" in resp_obj and resp_obj["response"]:
                         candidates = resp_obj["response"].get("candidates", [])
                         raw_text = candidates[0]["content"]["parts"][0]["text"]
@@ -329,6 +344,7 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
                             "total_tokens": total_tokens,
                             "cost_usd": total_cost_usd,
                             "cost_per_audio_minute_usd": cost_per_min,
+                            "latency_seconds": round(batch_total_time / len(audio_paths), 2) if audio_paths else 0.0,
                             "is_batch": True
                         }
 
@@ -336,23 +352,23 @@ def process_audio_batch_job(audio_paths: List[str]) -> List[Tuple[str, Optional[
                     else:
                         err = resp_obj.get("error", "Unknown batch file error")
                         logger.error(f"File '{basename}' failed in batch execution: {err}")
-                        # Log error state without breaking whole batch execution
                         usage_stats = {
                             "audio_duration_seconds": info["duration_sec"],
                             "audio_duration_formatted": info["duration_formatted"],
                             "prompt_tokens": 0, "candidate_tokens": 0, "total_tokens": 0,
-                            "cost_usd": 0.0, "cost_per_audio_minute_usd": 0.0, "is_batch": True
+                            "cost_usd": 0.0, "cost_per_audio_minute_usd": 0.0,
+                            "latency_seconds": 0.0, "is_batch": True
                         }
                         batch_results.append((basename, None, usage_stats))
                 except Exception as line_ex:
-                    logger.error(f"Failed parsing response line for '{basename}': {line_ex}")
+                    logger.error(f"Failed parsing response line: {line_ex}")
                     usage_stats = {
-                        "audio_duration_seconds": info["duration_sec"],
-                        "audio_duration_formatted": info["duration_formatted"],
+                        "audio_duration_seconds": 0.0, "audio_duration_formatted": "0s",
                         "prompt_tokens": 0, "candidate_tokens": 0, "total_tokens": 0,
-                        "cost_usd": 0.0, "cost_per_audio_minute_usd": 0.0, "is_batch": True
+                        "cost_usd": 0.0, "cost_per_audio_minute_usd": 0.0,
+                        "latency_seconds": 0.0, "is_batch": True
                     }
-                    batch_results.append((basename, None, usage_stats))
+                    batch_results.append((f"error_{item_idx}.wav", None, usage_stats))
         else:
             raise RuntimeError(f"Gemini Batch Job ended with state: {batch_job.state}")
 

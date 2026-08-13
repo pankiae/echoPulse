@@ -167,18 +167,25 @@ def get_results():
     global CURRENT_BATCH_RESULTS
     logger.info("Fetching batch results...")
     if CURRENT_BATCH_RESULTS is None:
-        if os.path.exists("test_docs"):
-            logger.info("Loading initial batch from local 'test_docs' directory...")
-            CURRENT_BATCH_RESULTS = process_batch("test_docs")
+        if os.path.exists("test_audio"):
+            logger.info("Loading initial batch from local 'test_audio' directory...")
+            CURRENT_BATCH_RESULTS = process_batch("test_audio")
         else:
             return {
                 "total_files": 0,
+                "manifest_present": False,
+                "matched_manifest_count": 0,
+                "unmatched_audio_files": [],
                 "total_audio_duration_seconds": 0.0,
                 "total_audio_duration_formatted": "0s",
                 "total_prompt_tokens": 0,
                 "total_candidate_tokens": 0,
                 "total_tokens": 0,
                 "total_batch_cost_usd": 0.0,
+                "cost_per_audio_minute_usd": 0.0,
+                "cost_ceiling_per_min_usd": 0.003,
+                "cost_ceiling_compliant": True,
+                "total_batch_latency_seconds": 0.0,
                 "results": []
             }
     return CURRENT_BATCH_RESULTS
@@ -187,7 +194,7 @@ def get_results():
 @app.get("/api/export/csv")
 def export_csv():
     global CURRENT_BATCH_RESULTS
-    logger.info("Exporting batch results as CSV format")
+    logger.info("Exporting batch results as CSV format (name,result_json)")
     if not CURRENT_BATCH_RESULTS:
         raise HTTPException(status_code=400, detail="No batch analysis results available to export")
 
@@ -200,7 +207,8 @@ def export_csv():
 
     for item in CURRENT_BATCH_RESULTS.get("results", []):
         name = item["filename"]
-        pred_json = json.dumps(item.get("prediction", {}))
+        pred = item.get("prediction")
+        pred_json = json.dumps(pred) if pred is not None else ""
         writer.writerow([name, pred_json])
 
     response = HTMLResponse(content=output.getvalue(), media_type="text/csv")
